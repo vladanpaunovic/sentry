@@ -37,7 +37,8 @@ from django.contrib.auth import login
 from django.contrib.auth.models import AnonymousUser
 from django.core import signing
 from django.core.cache import cache
-from django.db import DEFAULT_DB_ALIAS, connections
+from django.db import DEFAULT_DB_ALIAS, connection, connections
+from django.db.migrations.executor import MigrationExecutor
 from django.http import HttpRequest
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.test.utils import CaptureQueriesContext
@@ -105,36 +106,6 @@ class BaseTestCase(Fixtures, Exam):
 
     def tasks(self):
         return TaskRunner()
-
-    @classmethod
-    @contextmanager
-    def static_asset_manifest(cls, manifest_data):
-        dist_path = "src/sentry/static/sentry/dist"
-        manifest_path = f"{dist_path}/manifest.json"
-
-        with open(manifest_path, "w") as manifest_fp:
-            json.dump(manifest_data, manifest_fp)
-
-        files = []
-        for file_path in manifest_data.values():
-            full_path = f"{dist_path}/{file_path}"
-            # make directories in case they don't exist
-            # (e.g. dist path should exist, but subdirs won't)
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            open(full_path, "a").close()
-            files.append(full_path)
-
-        try:
-            yield {"manifest": manifest_data, "files": files}
-        finally:
-            with open(manifest_path, "w") as manifest_fp:
-                # Instead of unlinking, preserve an empty manifest file so that other tests that
-                # may or may not load static assets, do not fail
-                manifest_fp.write("{}")
-
-            # Remove any files created from the test manifest
-            for filepath in files:
-                os.unlink(filepath)
 
     @classmethod
     @contextmanager
@@ -456,6 +427,14 @@ class APITestCase(BaseTestCase, BaseAPITestCase):
 
         return response
 
+    def get_cursor_headers(self, response):
+        return [
+            link["cursor"]
+            for link in requests.utils.parse_header_links(
+                response.get("link").rstrip(">").replace(">,<", ",<")
+            )
+        ]
+
 
 class TwoFactorAPITestCase(APITestCase):
     @fixture
@@ -753,7 +732,7 @@ class IntegrationTestCase(TestCase):
         self.save_session()
 
     def assertDialogSuccess(self, resp):
-        assert b"window.opener.postMessage(" in resp.content
+        assert b'window.opener.postMessage({"success":true' in resp.content
 
 
 @pytest.mark.snuba
@@ -1158,3 +1137,42 @@ class OrganizationDashboardWidgetTestCase(APITestCase):
             user=self.user, organization=self.organization, role="member", teams=[self.team]
         )
         self.login_as(self.user)
+
+
+class TestMigrations(TestCase):
+    """
+    From https://www.caktusgroup.com/blog/2016/02/02/writing-unit-tests-django-migrations/
+    """
+
+    @property
+    def app(self):
+        return "sentry"
+
+    migrate_from = None
+    migrate_to = None
+
+    def setUp(self):
+        assert (
+            self.migrate_from and self.migrate_to
+        ), "TestCase '{}' must define migrate_from and migrate_to properties".format(
+            type(self).__name__
+        )
+        self.migrate_from = [(self.app, self.migrate_from)]
+        self.migrate_to = [(self.app, self.migrate_to)]
+        executor = MigrationExecutor(connection)
+        old_apps = executor.loader.project_state(self.migrate_from).apps
+
+        # Reverse to the original migration
+        executor.migrate(self.migrate_from)
+
+        self.setup_before_migration(old_apps)
+
+        # Run the migration to test
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()  # reload.
+        executor.migrate(self.migrate_to)
+
+        self.apps = executor.loader.project_state(self.migrate_to).apps
+
+    def setup_before_migration(self, apps):
+        pass

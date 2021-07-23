@@ -13,6 +13,7 @@ const validHookNames = new Set<HookName>([
   'analytics:init-user',
   'analytics:track-adhoc-event',
   'analytics:track-event',
+  'analytics:track-event-v2',
   'analytics:log-experiment',
   'component:disabled-member',
   'component:disabled-member-tooltip',
@@ -71,6 +72,7 @@ const validHookNames = new Set<HookName>([
   'sidebar:bottom-items',
   'sidebar:help-menu',
   'sidebar:item-label',
+  'sidebar:item-override',
   'sidebar:organization-dropdown-menu',
   'sidebar:organization-dropdown-menu-bottom',
 ]);

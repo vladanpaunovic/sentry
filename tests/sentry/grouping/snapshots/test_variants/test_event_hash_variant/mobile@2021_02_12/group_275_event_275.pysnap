@@ -1,5 +1,5 @@
 ---
-created: '2021-05-17T08:41:27.527511Z'
+created: '2021-07-14T12:39:39.938788Z'
 creator: sentry
 source: tests/sentry/grouping/test_variants.py
 ---
@@ -13,14 +13,14 @@ app-depth-1:
           frame*
             function*
               "stripped_application_code"
-        type (ignored because exception is synthetic (detected via exception type))
+        type (ignored because exception is synthetic)
           "EXC_BAD_ACCESS / KERN_INVALID_ADDRESS"
         value (ignored because stacktrace takes precedence)
           "Fatal Error: EXC_BAD_ACCESS / KERN_INVALID_ADDRESS"
 --------------------------------------------------------------------------
 app-depth-2:
   hash: "12c4b5346b5242ec65d3153bb45937b0"
-  tree_label: "stripped_application_code | ..."
+  tree_label: "stripped_application_code | stripped_application_code"
   component:
     app-depth-2*
       exception*
@@ -31,14 +31,14 @@ app-depth-2:
           frame*
             function*
               "stripped_application_code"
-        type (ignored because exception is synthetic (detected via exception type))
+        type (ignored because exception is synthetic)
           "EXC_BAD_ACCESS / KERN_INVALID_ADDRESS"
         value (ignored because stacktrace takes precedence)
           "Fatal Error: EXC_BAD_ACCESS / KERN_INVALID_ADDRESS"
 --------------------------------------------------------------------------
 app-depth-3:
   hash: "2c1bbd635b64d5adccdb64a620044075"
-  tree_label: "stripped_application_code | ..."
+  tree_label: "stripped_application_code | stripped_application_code | stripped_application_code"
   component:
     app-depth-3*
       exception*
@@ -52,14 +52,14 @@ app-depth-3:
           frame*
             function*
               "stripped_application_code"
-        type (ignored because exception is synthetic (detected via exception type))
+        type (ignored because exception is synthetic)
           "EXC_BAD_ACCESS / KERN_INVALID_ADDRESS"
         value (ignored because stacktrace takes precedence)
           "Fatal Error: EXC_BAD_ACCESS / KERN_INVALID_ADDRESS"
 --------------------------------------------------------------------------
 app-depth-max:
   hash: "2c1bbd635b64d5adccdb64a620044075"
-  tree_label: "<entire stacktrace>"
+  tree_label: "stripped_application_code | stripped_application_code | stripped_application_code"
   component:
     app-depth-max*
       exception*
@@ -164,14 +164,14 @@ app-depth-max:
           frame (ignored by stack trace rule (category:internals -group))
             function*
               "_INTERNAL34b3029b::`anonymous namespace'::Convert4444_8uTo4444_32f<T>"
-        type (ignored because exception is synthetic (detected via exception type))
+        type (ignored because exception is synthetic)
           "EXC_BAD_ACCESS / KERN_INVALID_ADDRESS"
         value (ignored because stacktrace takes precedence)
           "Fatal Error: EXC_BAD_ACCESS / KERN_INVALID_ADDRESS"
 --------------------------------------------------------------------------
 system:
-  hash: "2c1bbd635b64d5adccdb64a620044075"
-  tree_label: "<entire stacktrace>"
+  hash: "146b5a5d622c46da1ab5378130886b5e"
+  tree_label: "stripped_application_code | stripped_application_code | stripped_application_code"
   component:
     system*
       exception*
@@ -276,7 +276,7 @@ system:
           frame (ignored by stack trace rule (category:internals -group))
             function*
               "_INTERNAL34b3029b::`anonymous namespace'::Convert4444_8uTo4444_32f<T>"
-        type (ignored because exception is synthetic)
+        type*
           "EXC_BAD_ACCESS / KERN_INVALID_ADDRESS"
         value (ignored because stacktrace takes precedence)
           "Fatal Error: EXC_BAD_ACCESS / KERN_INVALID_ADDRESS"

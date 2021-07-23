@@ -94,7 +94,10 @@ class FetchReleaseFileTest(TestCase):
         file.putfile(BytesIO(binary_body))
 
         ReleaseFile.objects.create(
-            name="file.min.js", release=release, organization_id=project.organization_id, file=file
+            name="file.min.js",
+            release_id=release.id,
+            organization_id=project.organization_id,
+            file=file,
         )
 
         result = fetch_release_file("file.min.js", release)
@@ -127,8 +130,8 @@ class FetchReleaseFileTest(TestCase):
         foo_dist = release.add_dist("foo")
         ReleaseFile.objects.create(
             name="file.min.js",
-            release=release,
-            dist=foo_dist,
+            release_id=release.id,
+            dist_id=foo_dist.id,
             organization_id=project.organization_id,
             file=foo_file,
         )
@@ -142,8 +145,8 @@ class FetchReleaseFileTest(TestCase):
         bar_dist = release.add_dist("bar")
         ReleaseFile.objects.create(
             name="file.min.js",
-            release=release,
-            dist=bar_dist,
+            release_id=release.id,
+            dist_id=bar_dist.id,
             organization_id=project.organization_id,
             file=bar_file,
         )
@@ -180,7 +183,7 @@ class FetchReleaseFileTest(TestCase):
 
         ReleaseFile.objects.create(
             name="~/file.min.js",
-            release=release,
+            release_id=release.id,
             organization_id=project.organization_id,
             file=file,
         )
@@ -214,7 +217,10 @@ class FetchReleaseFileTest(TestCase):
         file.putfile(BytesIO(binary_body))
 
         ReleaseFile.objects.create(
-            name="file.min.js", release=release, organization_id=project.organization_id, file=file
+            name="file.min.js",
+            release_id=release.id,
+            organization_id=project.organization_id,
+            file=file,
         )
 
         result = fetch_release_file("file.min.js", release)
@@ -261,7 +267,10 @@ class FetchReleaseFileTest(TestCase):
         file.putfile(BytesIO(binary_body))
 
         ReleaseFile.objects.create(
-            name="file.min.js", release=release, organization_id=project.organization_id, file=file
+            name="file.min.js",
+            release_id=release.id,
+            organization_id=project.organization_id,
+            file=file,
         )
 
         mock_compress_file.return_value = (binary_body, binary_body)
@@ -368,7 +377,7 @@ class FetchReleaseFileTest(TestCase):
 
         ReleaseFile.objects.create(
             name=file.name,
-            release=release,
+            release_id=release.id,
             organization_id=project.organization_id,
             file=file,
         )
@@ -522,25 +531,24 @@ class FetchFileTest(TestCase):
         file_.putfile(compressed)
         update_artifact_index(release, None, file_)
 
-        with self.options({"processing.use-release-archives-sample-rate": 1.0}):
-            # Attempt to fetch nonexisting
-            with pytest.raises(http.BadSource):
-                fetch_file("does-not-exist.js", release=release)
+        # Attempt to fetch nonexisting
+        with pytest.raises(http.BadSource):
+            fetch_file("does-not-exist.js", release=release)
 
-            # Attempt to fetch nonexsting again (to check if cache works)
-            with pytest.raises(http.BadSource):
-                result = fetch_file("does-not-exist.js", release=release)
+        # Attempt to fetch nonexsting again (to check if cache works)
+        with pytest.raises(http.BadSource):
+            result = fetch_file("does-not-exist.js", release=release)
 
-            result = fetch_file("/example.js", release=release)
-            assert result.url == "/example.js"
-            assert result.body == b"foo"
-            assert isinstance(result.body, bytes)
-            assert result.headers == {"content-type": "application/json"}
-            assert result.encoding == "utf-8"
+        result = fetch_file("/example.js", release=release)
+        assert result.url == "/example.js"
+        assert result.body == b"foo"
+        assert isinstance(result.body, bytes)
+        assert result.headers == {"content-type": "application/json"}
+        assert result.encoding == "utf-8"
 
-            # Make sure cache loading works:
-            result2 = fetch_file("/example.js", release=release)
-            assert result2 == result
+        # Make sure cache loading works:
+        result2 = fetch_file("/example.js", release=release)
+        assert result2 == result
 
     @patch("sentry.lang.javascript.processor.cache.set", side_effect=cache.set)
     @patch("sentry.lang.javascript.processor.cache.get", side_effect=cache.get)
@@ -583,9 +591,9 @@ class FetchFileTest(TestCase):
         pseudo_archive.putfile(BytesIO(b"i_am_an_archive"))
         releasefile = ReleaseFile.objects.create(
             name=pseudo_archive.name,
-            release=release2,
+            release_id=release2.id,
             organization_id=self.organization.id,
-            dist=None,
+            dist_id=None,
             file=pseudo_archive,
         )
         file = File.objects.create(name=ARTIFACT_INDEX_FILENAME, type="release.artifact-index")
@@ -594,7 +602,7 @@ class FetchFileTest(TestCase):
         )
         ReleaseFile.objects.create(
             name=ARTIFACT_INDEX_FILENAME,
-            release=release2,
+            release_id=release2.id,
             organization_id=self.project.organization_id,
             file=file,
         )
@@ -1233,7 +1241,7 @@ class CacheSourceTest(TestCase):
         release = self.create_release(project=project, version="12.31.12")
 
         abs_path = "app:///../node_modules/some-package/index.js"
-        self.create_release_file(release=release, name=abs_path)
+        self.create_release_file(release_id=release.id, name=abs_path)
 
         processor = JavaScriptStacktraceProcessor(
             data={"release": release.version}, stacktrace_infos=None, project=project
@@ -1263,7 +1271,7 @@ class CacheSourceTest(TestCase):
         release = self.create_release(project=project, version="12.31.12")
 
         abs_path = "app:///../node_modules/some-package/index.js"
-        self.create_release_file(release=release, name=abs_path)
+        self.create_release_file(release_id=release.id, name=abs_path)
 
         processor = JavaScriptStacktraceProcessor(
             data={"release": release.version}, stacktrace_infos=None, project=project

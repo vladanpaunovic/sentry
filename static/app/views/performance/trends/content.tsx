@@ -18,7 +18,7 @@ import {trackAnalyticsEvent} from 'app/utils/analytics';
 import EventView from 'app/utils/discover/eventView';
 import {generateAggregateFields} from 'app/utils/discover/fields';
 import {decodeScalar} from 'app/utils/queryString';
-import {stringifyQueryObject, tokenizeSearch} from 'app/utils/tokenizeSearch';
+import {tokenizeSearch} from 'app/utils/tokenizeSearch';
 import withGlobalSelection from 'app/utils/withGlobalSelection';
 
 import {getPerformanceLandingUrl, getTransactionSearchQuery} from '../utils';
@@ -153,7 +153,7 @@ class TrendsContent extends React.Component<Props, State> {
     conditions.removeTag('tpm()');
     conditions.removeTag('confidence()');
     conditions.removeTag('transaction.duration');
-    newQuery.query = stringifyQueryObject(conditions);
+    newQuery.query = conditions.formatString();
     return {
       pathname: getPerformanceLandingUrl(this.props.organization),
       query: newQuery,
@@ -231,6 +231,7 @@ class TrendsContent extends React.Component<Props, State> {
             <DefaultTrends location={location} eventView={eventView}>
               <StyledSearchContainer>
                 <StyledSearchBar
+                  searchSource="trends"
                   organization={organization}
                   projectIds={trendView.project}
                   query={query}
@@ -240,7 +241,7 @@ class TrendsContent extends React.Component<Props, State> {
                 />
                 <TrendsDropdown>
                   <DropdownControl
-                    buttonProps={{prefix: t('Display')}}
+                    buttonProps={{prefix: t('Percentile')}}
                     label={currentTrendFunction.label}
                   >
                     {TRENDS_FUNCTIONS.map(({label, field}) => (
@@ -324,7 +325,7 @@ class DefaultTrends extends React.Component<DefaultTrendsProps> {
       conditions.setTagValues(trendParameter.column, ['>0', `<${DEFAULT_MAX_DURATION}`]);
     }
 
-    const query = stringifyQueryObject(conditions);
+    const query = conditions.formatString();
     eventView.query = query;
 
     browserHistory.push({

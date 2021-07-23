@@ -7,7 +7,7 @@ import {ModalRenderProps} from 'app/actionCreators/modal';
 import {AppStoreConnectContextProps} from 'app/components/projects/appStoreConnectContext';
 import {getDebugSourceName} from 'app/data/debugFileSources';
 import {tct} from 'app/locale';
-import {DebugFileSource} from 'app/types';
+import {CustomRepoType} from 'app/types/debugFiles';
 import FieldFromConfig from 'app/views/settings/components/forms/fieldFromConfig';
 import Form from 'app/views/settings/components/forms/form';
 
@@ -27,18 +27,18 @@ type Props = WithRouterProps<RouteParams, {}> & {
   /**
    * Callback invoked with the updated config value.
    */
-  onSave: (config: Record<string, any>) => void;
+  onSave: (data: Record<string, any>) => Promise<void>;
   /**
    * Type of this source.
    */
-  sourceType: DebugFileSource;
+  sourceType: CustomRepoType;
 
   appStoreConnectContext?: AppStoreConnectContextProps;
   /**
    * The sourceConfig. May be empty to create a new one.
    */
   sourceConfig?: Record<string, any>;
-} & Pick<ModalRenderProps, 'Header' | 'Body' | 'Footer'>;
+} & Pick<ModalRenderProps, 'Header' | 'Body' | 'Footer' | 'closeModal'>;
 
 function DebugFileCustomRepository({
   Header,
@@ -50,12 +50,19 @@ function DebugFileCustomRepository({
   params: {orgId, projectId: projectSlug},
   location,
   appStoreConnectContext,
+  closeModal,
 }: Props) {
   function handleSave(data: Record<string, any>) {
-    onSave({...data, type: sourceType});
+    onSave({...data, type: sourceType}).then(() => {
+      closeModal();
+
+      if (sourceType === CustomRepoType.APP_STORE_CONNECT) {
+        window.location.reload();
+      }
+    });
   }
 
-  if (sourceType === 'appStoreConnect') {
+  if (sourceType === CustomRepoType.APP_STORE_CONNECT) {
     return (
       <AppStoreConnect
         Header={Header}

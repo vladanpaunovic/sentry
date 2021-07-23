@@ -10,7 +10,7 @@ import {
 } from 'app/components/performance/waterfall/miniHeader';
 import {
   getHumanDuration,
-  pickBarColour,
+  pickBarColor,
   rectOfContent,
   toPercent,
 } from 'app/components/performance/waterfall/utils';
@@ -536,9 +536,7 @@ class ActualMinimap extends React.PureComponent<{
     }).spanTree;
   }
 
-  getBounds(
-    bounds: SpanGeneratedBoundsType
-  ): {
+  getBounds(bounds: SpanGeneratedBoundsType): {
     left: string;
     width: string;
   } {
@@ -585,7 +583,7 @@ class ActualMinimap extends React.PureComponent<{
     spanTree: JSX.Element;
     nextSpanNumber: number;
   } {
-    const spanBarColour: string = pickBarColour(getSpanOperation(span));
+    const spanBarColor: string = pickBarColor(getSpanOperation(span));
 
     const bounds = generateBounds({
       startTimestamp: span.start_timestamp,
@@ -639,7 +637,7 @@ class ActualMinimap extends React.PureComponent<{
         <React.Fragment>
           <MinimapSpanBar
             style={{
-              backgroundColor: spanBarColour,
+              backgroundColor: spanBarColor,
               left: spanLeft,
               width: spanWidth,
             }}

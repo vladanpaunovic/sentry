@@ -2,7 +2,7 @@ import hashlib
 import logging
 from os import path
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, router
 
 from sentry import options
 from sentry.api.serializers import serialize
@@ -12,6 +12,7 @@ from sentry.models import File, Organization, Release, ReleaseFile
 from sentry.models.releasefile import ReleaseArchive, update_artifact_index
 from sentry.tasks.base import instrumented_task
 from sentry.utils import metrics
+from sentry.utils.db import atomic_transaction
 from sentry.utils.files import get_max_file_size
 from sentry.utils.sdk import bind_organization_context, configure_scope
 
@@ -137,7 +138,7 @@ def assemble_dif(project_id, name, checksum, chunks, debug_id=None, **kwargs):
                 # created, someone else has created it and will bump the
                 # revision instead.
                 bump_reprocessing_revision(project)
-    except BaseException:
+    except Exception:
         set_assemble_status(
             AssembleTask.DIF,
             project_id,
@@ -159,46 +160,63 @@ class AssembleArtifactsError(Exception):
     pass
 
 
-def _simple_update(release_file: ReleaseFile, new_file: File, new_archive: ReleaseArchive):
+def _simple_update(
+    release_file: ReleaseFile, new_file: File, new_archive: ReleaseArchive, additional_fields: dict
+) -> bool:
     """Update function used in _upsert_release_file"""
     old_file = release_file.file
-    release_file.update(file=new_file)
+    release_file.update(file=new_file, **additional_fields)
     old_file.delete()
 
+    return True
 
-def _upsert_release_file(file: File, archive: ReleaseArchive, update_fn, **kwargs):
+
+def _upsert_release_file(
+    file: File, archive: ReleaseArchive, update_fn, key_fields, additional_fields
+) -> bool:
+    success = False
     release_file = None
 
     # Release files must have unique names within their release
     # and dist. If a matching file already exists, replace its
     # file with the new one; otherwise create it.
     try:
-        release_file = ReleaseFile.objects.get(**kwargs)
+        release_file = ReleaseFile.objects.get(**key_fields)
     except ReleaseFile.DoesNotExist:
         try:
-            with transaction.atomic():
-                release_file = ReleaseFile.objects.create(file=file, **kwargs)
+            with atomic_transaction(using=router.db_for_write(ReleaseFile)):
+                release_file = ReleaseFile.objects.create(
+                    file=file, **dict(key_fields, **additional_fields)
+                )
         except IntegrityError:
             # NB: This indicates a race, where another assemble task or
             # file upload job has just created a conflicting file. Since
             # we're upserting here anyway, yield to the faster actor and
             # do not try again.
             file.delete()
+        else:
+            success = True
     else:
-        update_fn(release_file, file, archive)
+        success = update_fn(release_file, file, archive, additional_fields)
+
+    return success
 
 
-def _store_single_files(archive: ReleaseArchive, meta: dict):
+def get_artifact_basename(url):
+    return url.rsplit("/", 1)[-1]
+
+
+def _store_single_files(archive: ReleaseArchive, meta: dict, count_as_artifacts: bool):
     try:
         temp_dir = archive.extract()
-    except BaseException:
+    except Exception:
         raise AssembleArtifactsError("failed to extract bundle")
 
     with temp_dir:
         artifacts = archive.manifest.get("files", {})
         for rel_path, artifact in artifacts.items():
             artifact_url = artifact.get("url", rel_path)
-            artifact_basename = artifact_url.rsplit("/", 1)[-1]
+            artifact_basename = get_artifact_basename(artifact_url)
 
             file = File.objects.create(
                 name=artifact_basename, type="release.file", headers=artifact.get("headers", {})
@@ -209,7 +227,8 @@ def _store_single_files(archive: ReleaseArchive, meta: dict):
                 file.putfile(fp, logger=logger)
 
             kwargs = dict(meta, name=artifact_url)
-            _upsert_release_file(file, None, _simple_update, **kwargs)
+            extra_fields = {"artifact_count": 1 if count_as_artifacts else 0}
+            _upsert_release_file(file, None, _simple_update, kwargs, extra_fields)
 
 
 @instrumented_task(name="sentry.tasks.assemble.assemble_artifacts", queue="assemble")
@@ -245,7 +264,7 @@ def assemble_artifacts(org_id, version, checksum, chunks, **kwargs):
 
         try:
             archive = ReleaseArchive(temp_file)
-        except BaseException:
+        except Exception:
             raise AssembleArtifactsError("failed to open release manifest")
 
         with archive:
@@ -269,24 +288,25 @@ def assemble_artifacts(org_id, version, checksum, chunks, **kwargs):
             if dist_name:
                 dist = release.add_dist(dist_name)
 
-            meta = {  # Required for release file creation
-                "organization_id": organization.id,
-                "release": release,
-                "dist": dist,
-            }
-
             num_files = len(manifest.get("files", {}))
 
-            if options.get("processing.save-release-archives"):
-                min_size = options.get("processing.release-archive-min-files")
-                if num_files >= min_size:
-                    update_artifact_index(release, dist, bundle)
+            meta = {  # Required for release file creation
+                "organization_id": organization.id,
+                "release_id": release.id,
+                "dist_id": dist.id if dist else dist,
+            }
 
-            # NOTE(jjbayer): Single files are still stored to enable
-            # rolling back from release archives. Once release archives run
-            # smoothely, this call can be removed / only called when feature
-            # flag is off.
-            _store_single_files(archive, meta)
+            saved_as_archive = False
+            min_size = options.get("processing.release-archive-min-files")
+            if num_files >= min_size:
+                try:
+                    update_artifact_index(release, dist, bundle)
+                    saved_as_archive = True
+                except Exception as exc:
+                    logger.error("Unable to update artifact index", exc_info=exc)
+
+            if not saved_as_archive:
+                _store_single_files(archive, meta, True)
 
             # Count files extracted, to compare them to release files endpoint
             metrics.incr("tasks.assemble.extracted_files", amount=num_files)
@@ -295,7 +315,7 @@ def assemble_artifacts(org_id, version, checksum, chunks, **kwargs):
         set_assemble_status(
             AssembleTask.ARTIFACTS, org_id, checksum, ChunkFileState.ERROR, detail=str(e)
         )
-    except BaseException:
+    except Exception:
         logger.error("failed to assemble release bundle", exc_info=True)
         set_assemble_status(
             AssembleTask.ARTIFACTS,

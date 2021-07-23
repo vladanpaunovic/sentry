@@ -5,11 +5,13 @@ import styled from '@emotion/styled';
 import Feature from 'app/components/acl/feature';
 import Button from 'app/components/button';
 import {SectionHeading} from 'app/components/charts/styles';
+import FeatureBadge from 'app/components/featureBadge';
 import {IconAdd, IconDelete, IconGrabbable} from 'app/icons';
 import {t} from 'app/locale';
 import space from 'app/styles/space';
 import {LightWeightOrganization} from 'app/types';
-import {Column} from 'app/utils/discover/fields';
+import {trackAnalyticsEvent} from 'app/utils/analytics';
+import {AGGREGATIONS, Column} from 'app/utils/discover/fields';
 import theme from 'app/utils/theme';
 import {getPointerPosition} from 'app/utils/touch';
 import {setBodyUserSelect, UserSelectValues} from 'app/utils/userselect';
@@ -106,7 +108,13 @@ class ColumnEditCollection extends React.Component<Props, State> {
   };
 
   handleAddEquation = () => {
+    const {organization} = this.props;
     const newColumn: Column = {kind: FieldValueKind.EQUATION, field: ''};
+    trackAnalyticsEvent({
+      eventKey: 'discover_v2.add_equation',
+      eventName: 'Discoverv2: Equation added',
+      organization_id: parseInt(organization.id, 10),
+    });
     this.props.onChange([...this.props.columns, newColumn]);
   };
 
@@ -283,7 +291,7 @@ class ColumnEditCollection extends React.Component<Props, State> {
       gridColumns = 2,
     }: {canDelete?: boolean; isGhost?: boolean; gridColumns: number}
   ) {
-    const {fieldOptions} = this.props;
+    const {columns, fieldOptions} = this.props;
     const {isDragging, draggingTargetIndex, draggingIndex} = this.state;
 
     let placeholder: React.ReactNode = null;
@@ -330,6 +338,7 @@ class ColumnEditCollection extends React.Component<Props, State> {
             fieldValue={col}
             onChange={value => this.handleUpdateColumn(i, value)}
             takeFocus={i === this.props.columns.length - 1}
+            otherColumns={columns}
           />
           {canDelete ? (
             <Button
@@ -349,7 +358,11 @@ class ColumnEditCollection extends React.Component<Props, State> {
 
   render() {
     const {className, columns, organization} = this.props;
-    const canDelete = columns.length > 1;
+    const canDelete =
+      columns.filter(
+        field =>
+          field.kind === 'function' || (field.kind === 'field' && field.field !== '')
+      ).length > 1;
     const canAdd = columns.length < MAX_COL_COUNT;
     const title = canAdd
       ? undefined
@@ -359,7 +372,9 @@ class ColumnEditCollection extends React.Component<Props, State> {
     // We always want at least 2 columns.
     const gridColumns = Math.max(
       ...columns.map(col =>
-        col.kind === 'function' && col.function[2] !== undefined ? 3 : 2
+        col.kind === 'function' && AGGREGATIONS[col.function[0]].parameters.length === 2
+          ? 3
+          : 2
       )
     );
 
@@ -397,6 +412,7 @@ class ColumnEditCollection extends React.Component<Props, State> {
                 icon={<IconAdd isCircled size="xs" />}
               >
                 {t('Add an Equation')}
+                <StyledFeatureBadge type="beta" />
               </Button>
             </Feature>
           </Actions>
@@ -405,6 +421,11 @@ class ColumnEditCollection extends React.Component<Props, State> {
     );
   }
 }
+
+const StyledFeatureBadge = styled(FeatureBadge)`
+  margin: -${space(0.5)} auto;
+  margin-left: ${space(1)};
+`;
 
 const RowContainer = styled('div')`
   display: grid;

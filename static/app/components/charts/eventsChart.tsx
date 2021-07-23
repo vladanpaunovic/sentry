@@ -21,7 +21,7 @@ import {DateString, OrganizationSummary} from 'app/types';
 import {Series} from 'app/types/echarts';
 import {defined} from 'app/utils';
 import {axisLabelFormatter, tooltipFormatter} from 'app/utils/discover/charts';
-import {aggregateMultiPlotType} from 'app/utils/discover/fields';
+import {aggregateMultiPlotType, getEquation, isEquation} from 'app/utils/discover/fields';
 import {Theme} from 'app/utils/theme';
 
 import EventsRequest from './eventsRequest';
@@ -44,6 +44,7 @@ type ChartProps = {
    * Can be used to rename series or even insert a new series.
    */
   seriesTransformer?: (series: Series[]) => Series[];
+  previousSeriesTransformer?: (series?: Series | null) => Series | null | undefined;
   showDaily?: boolean;
   interval?: string;
   yAxis: string;
@@ -58,6 +59,7 @@ type ChartProps = {
     | React.ComponentType<BarChart['props']>
     | React.ComponentType<AreaChart['props']>
     | React.ComponentType<LineChart['props']>;
+  height?: number;
 };
 
 type State = {
@@ -154,7 +156,9 @@ class Chart extends React.Component<ChartProps, State> {
       currentSeriesName,
       previousSeriesName,
       seriesTransformer,
+      previousSeriesTransformer,
       colors,
+      height,
       ...props
     } = this.props;
     const {seriesSelection} = this.state;
@@ -192,9 +196,14 @@ class Chart extends React.Component<ChartProps, State> {
     let series = Array.isArray(releaseSeries)
       ? [...timeseriesData, ...releaseSeries]
       : timeseriesData;
+    let previousSeries = previousTimeseriesData;
 
     if (seriesTransformer) {
       series = seriesTransformer(series);
+    }
+
+    if (previousSeriesTransformer) {
+      previousSeries = previousSeriesTransformer(previousTimeseriesData);
     }
 
     const chartOptions = {
@@ -236,7 +245,8 @@ class Chart extends React.Component<ChartProps, State> {
         legend={legend}
         onLegendSelectChanged={this.handleLegendSelectChanged}
         series={series}
-        previousPeriod={previousTimeseriesData ? [previousTimeseriesData] : undefined}
+        previousPeriod={previousSeries ? [previousSeries] : undefined}
+        height={height}
       />
     );
   }
@@ -324,16 +334,22 @@ export type EventsChartProps = {
   chartHeader?: React.ReactNode;
   releaseQueryExtra?: Query;
   preserveReleaseQueryParams?: boolean;
+  /**
+   * Chart zoom will change 'pageStart' instead of 'start'
+   */
+  usePageZoom?: boolean;
 } & Pick<
   ChartProps,
   | 'currentSeriesName'
   | 'previousSeriesName'
   | 'seriesTransformer'
+  | 'previousSeriesTransformer'
   | 'showLegend'
   | 'disableableSeries'
   | 'legendOptions'
   | 'chartOptions'
   | 'chartComponent'
+  | 'height'
 >;
 
 type ChartDataProps = {
@@ -367,6 +383,7 @@ class EventsChart extends React.Component<EventsChartProps> {
       currentSeriesName: currentName,
       previousSeriesName: previousName,
       seriesTransformer,
+      previousSeriesTransformer,
       field,
       interval,
       showDaily,
@@ -381,16 +398,22 @@ class EventsChart extends React.Component<EventsChartProps> {
       releaseQueryExtra,
       disableableSeries,
       chartComponent,
+      usePageZoom,
+      height,
       ...props
     } = this.props;
     // Include previous only on relative dates (defaults to relative if no start and end)
     const includePrevious = !disablePrevious && !start && !end;
 
+    let yAxisLabel = yAxis && isEquation(yAxis) ? getEquation(yAxis) : yAxis;
+    if (yAxisLabel && yAxisLabel.length > 60) {
+      yAxisLabel = yAxisLabel.substr(0, 60) + '...';
+    }
     const previousSeriesName =
-      previousName ?? (yAxis ? t('previous %s', yAxis) : undefined);
-    const currentSeriesName = currentName ?? yAxis;
+      previousName ?? (yAxisLabel ? t('previous %s', yAxisLabel) : undefined);
+    const currentSeriesName = currentName ?? yAxisLabel;
 
-    const intervalVal = showDaily ? '1d' : interval || getInterval(this.props, true);
+    const intervalVal = showDaily ? '1d' : interval || getInterval(this.props, 'high');
 
     let chartImplementation = ({
       zoomRenderProps,
@@ -412,7 +435,11 @@ class EventsChart extends React.Component<EventsChartProps> {
       const seriesData = results ? results : timeseriesData;
 
       return (
-        <TransitionChart loading={loading} reloading={reloading}>
+        <TransitionChart
+          loading={loading}
+          reloading={reloading}
+          height={height ? `${height}px` : undefined}
+        >
           <TransparentLoadingMask visible={reloading} />
 
           {React.isValidElement(chartHeader) && chartHeader}
@@ -428,6 +455,7 @@ class EventsChart extends React.Component<EventsChartProps> {
             currentSeriesName={currentSeriesName}
             previousSeriesName={previousSeriesName}
             seriesTransformer={seriesTransformer}
+            previousSeriesTransformer={previousSeriesTransformer}
             stacked={typeof topEvents === 'number' && topEvents > 0}
             yAxis={yAxis}
             showDaily={showDaily}
@@ -436,6 +464,7 @@ class EventsChart extends React.Component<EventsChartProps> {
             chartOptions={chartOptions}
             disableableSeries={disableableSeries}
             chartComponent={chartComponent}
+            height={height}
           />
         </TransitionChart>
       );
@@ -467,6 +496,7 @@ class EventsChart extends React.Component<EventsChartProps> {
         start={start}
         end={end}
         utc={utc}
+        usePageDate={usePageZoom}
         {...props}
       >
         {zoomRenderProps => (

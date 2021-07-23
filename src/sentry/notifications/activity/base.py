@@ -8,17 +8,17 @@ from django.utils.safestring import SafeString, mark_safe
 
 from sentry.models import Activity, User
 from sentry.notifications.base import BaseNotification
-from sentry.notifications.notify import notify
-from sentry.notifications.types import GroupSubscriptionReason
+from sentry.notifications.helpers import get_reason_context
+from sentry.notifications.utils import send_activity_notification
 from sentry.notifications.utils.avatar import avatar_as_html
-from sentry.notifications.utils.participants import (
-    get_participants_for_group,
-    split_participants_and_context,
-)
+from sentry.notifications.utils.participants import get_participants_for_group
 from sentry.types.integrations import ExternalProviders
 
 
 class ActivityNotification(BaseNotification, ABC):
+    fine_tuning_key = "workflow"
+    is_message_issue_unfurl = True
+
     def __init__(self, activity: Activity) -> None:
         self.activity = activity
         super().__init__(activity.project, activity.group)
@@ -82,13 +82,7 @@ class ActivityNotification(BaseNotification, ABC):
     def get_user_context(
         self, user: User, extra_context: Mapping[str, Any]
     ) -> MutableMapping[str, Any]:
-        """Get user-specific context. Do not call get_context() here."""
-        reason = extra_context.get("reason", 0)
-        return {
-            "reason": GroupSubscriptionReason.descriptions.get(
-                reason, "are subscribed to this issue"
-            )
-        }
+        return get_reason_context(extra_context)
 
     def get_subject(self) -> str:
         group = self.group
@@ -101,7 +95,9 @@ class ActivityNotification(BaseNotification, ABC):
     def get_description(self) -> Tuple[str, Mapping[str, Any], Mapping[str, Any]]:
         raise NotImplementedError
 
-    def description_as_text(self, description: str, params: Mapping[str, Any]) -> str:
+    def description_as_text(
+        self, description: str, params: Mapping[str, Any], url: Optional[bool] = False
+    ) -> str:
         user = self.activity.user
         if user:
             name = user.name or user.email
@@ -109,6 +105,9 @@ class ActivityNotification(BaseNotification, ABC):
             name = "Sentry"
 
         issue_name = self.group.qualified_short_id or "an issue"
+        if url and self.group.qualified_short_id:
+            group_url = self.group.get_absolute_url(params={"referrer": "activity_notification"})
+            issue_name = f"<{group_url}|{self.group.qualified_short_id}>"
 
         context = {"author": name, "an issue": issue_name}
         context.update(params)
@@ -137,23 +136,18 @@ class ActivityNotification(BaseNotification, ABC):
     def get_title(self) -> str:
         return self.get_activity_name()
 
+    def get_notification_title(self) -> str:
+        description, params, _ = self.get_description()
+        return self.description_as_text(description, params, True)
+
     def get_reference(self) -> Any:
         return self.activity
 
     def get_reply_reference(self) -> Optional[Any]:
         return self.group
 
+    def get_type(self) -> str:
+        return f"notify.activity.{self.activity.get_type_display()}"
+
     def send(self) -> None:
-        if not self.should_email():
-            return
-
-        participants_by_provider = self.get_participants_with_group_subscription_reason()
-        if not participants_by_provider:
-            return
-
-        # Only calculate shared context once.
-        shared_context = self.get_context()
-
-        for provider, participants_with_reasons in participants_by_provider.items():
-            participants, extra_context = split_participants_and_context(participants_with_reasons)
-            notify(provider, self, participants, shared_context, extra_context)
+        return send_activity_notification(self)

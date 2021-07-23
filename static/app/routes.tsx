@@ -497,6 +497,7 @@ function routes() {
         component={errorHandler(LazyLoad)}
       />
 
+      <Redirect from="members/requests" to="members/" />
       <Route path="members/" name="Members">
         <Route
           componentPromise={() =>
@@ -507,15 +508,6 @@ function routes() {
           <IndexRoute
             componentPromise={() =>
               import('app/views/settings/organizationMembers/organizationMembersList')
-            }
-            component={errorHandler(LazyLoad)}
-          />
-
-          <Route
-            path="requests/"
-            name="Requests"
-            componentPromise={() =>
-              import('app/views/settings/organizationMembers/organizationRequestsView')
             }
             component={errorHandler(LazyLoad)}
           />
@@ -598,6 +590,14 @@ function routes() {
             component={errorHandler(LazyLoad)}
           />
           <Route
+            path="notifications/"
+            name="Notifications"
+            componentPromise={() =>
+              import('app/views/settings/organizationTeams/teamNotifications')
+            }
+            component={errorHandler(LazyLoad)}
+          />
+          <Route
             path="projects/"
             name="Projects"
             componentPromise={() =>
@@ -607,7 +607,7 @@ function routes() {
           />
           <Route
             path="settings/"
-            name="settings"
+            name="Settings"
             componentPromise={() =>
               import('app/views/settings/organizationTeams/teamSettings')
             }
@@ -878,7 +878,7 @@ function routes() {
         {/* A route tree for lightweight organizational detail views. We place
       this above the heavyweight organization detail views because there
       exist some redirects from deprecated routes which should not take
-      precedence over these lightweight routes*/}
+      precedence over these lightweight routes */}
         <Route component={errorHandler(LightWeightOrganizationDetails)}>
           <Route
             path="/organizations/:orgId/projects/"
@@ -911,6 +911,11 @@ function routes() {
             <Route
               path="searches/:searchId/"
               component={errorHandler(IssueListOverview)}
+            />
+            <Route
+              path="sessionPercent"
+              componentPromise={() => import('app/views/issueList/testSessionPercent')}
+              component={errorHandler(LazyLoad)}
             />
           </Route>
 
@@ -1129,6 +1134,17 @@ function routes() {
                   isEventRoute: true,
                 }}
               />
+              <Route
+                path="grouping/"
+                componentPromise={() =>
+                  import('app/views/organizationGroupDetails/grouping')
+                }
+                component={errorHandler(LazyLoad)}
+                props={{
+                  currentTab: TAB.GROUPING,
+                  isEventRoute: true,
+                }}
+              />
             </Route>
           </Route>
 
@@ -1165,7 +1181,7 @@ function routes() {
                 <Route
                   path=":ruleId/"
                   name="Edit Alert Rule"
-                  componentPromise={() => import('app/views/settings/projectAlerts/edit')}
+                  componentPromise={() => import('app/views/alerts/edit')}
                   component={errorHandler(LazyLoad)}
                 />
               </Route>
@@ -1184,7 +1200,7 @@ function routes() {
                 <Route
                   path=":ruleId/"
                   name="Edit Alert Rule"
-                  componentPromise={() => import('app/views/settings/projectAlerts/edit')}
+                  componentPromise={() => import('app/views/alerts/edit')}
                   component={errorHandler(LazyLoad)}
                 />
               </Route>
@@ -1211,7 +1227,7 @@ function routes() {
                 path="new/"
                 name="New Alert Rule"
                 component={errorHandler(LazyLoad)}
-                componentPromise={() => import('app/views/settings/projectAlerts/create')}
+                componentPromise={() => import('app/views/alerts/create')}
               />
               <Route
                 path="wizard/"
@@ -1310,7 +1326,7 @@ function routes() {
 
           {/*
         TODO(mark) Long term this /queries route should go away and /discover should be the
-        canoncial route for discover2. We have a redirect right now as /discover was for
+        canonical route for discover2. We have a redirect right now as /discover was for
         discover 1 and most of the application is linking to /discover/queries and not /discover
         */}
           <Redirect

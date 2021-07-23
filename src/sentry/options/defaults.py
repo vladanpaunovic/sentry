@@ -113,6 +113,11 @@ register(
 # The ratio of requests for which the new stackwalking method should be compared against the old one
 register("symbolicator.compare_stackwalking_methods_rate", default=0.0)
 
+# Killswitch for symbolication sources, based on a list of source IDs. Meant to be used in extreme
+# situations where it is preferable to break symbolication in a few places as opposed to letting
+# it break everywhere.
+register("symbolicator.ignored_sources", type=Sequence, default=(), flags=FLAG_ALLOW_EMPTY)
+
 # Backend chart rendering via chartcuterie
 register("chart-rendering.enabled", default=False, flags=FLAG_ALLOW_EMPTY | FLAG_PRIORITIZE_DISK)
 register(
@@ -338,14 +343,20 @@ register("store.load-shed-process-event-projects", type=Any, default=[])
 register("store.load-shed-symbolicate-event-projects", type=Any, default=[])
 
 # Store release files bundled as zip files
-register("processing.save-release-archives", default=False)
+register("processing.save-release-archives", default=False)  # unused
 
 # Minimum number of files in an archive. Small archives are extracted and its contents
 # are stored as separate release files.
 register("processing.release-archive-min-files", default=10)
 
 # Try to read release artifacts from zip archives
-register("processing.use-release-archives-sample-rate", default=0.0)
+register("processing.use-release-archives-sample-rate", default=0.0)  # unused
 
 # All Relay options (statically authenticated Relays can be registered here)
 register("relay.static_auth", default={}, flags=FLAG_NOSTORE)
+
+# Write new kafka headers in eventstream
+register("eventstream:kafka-headers", default=False)
+
+# Post process forwarder gets data from Kafka headers
+register("post-process-forwarder:kafka-headers", default=False)

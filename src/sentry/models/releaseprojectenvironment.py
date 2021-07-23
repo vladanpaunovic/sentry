@@ -1,4 +1,5 @@
 from datetime import timedelta
+from enum import Enum
 
 from django.db import models
 from django.utils import timezone
@@ -8,8 +9,14 @@ from sentry.utils import metrics
 from sentry.utils.cache import cache
 
 
+class ReleaseStages(str, Enum):
+    ADOPTED = "adopted"
+    LOW_ADOPTION = "low_adoption"
+    REPLACED = "replaced"
+
+
 class ReleaseProjectEnvironment(Model):
-    __core__ = False
+    __include_in_export__ = False
 
     release = FlexibleForeignKey("sentry.Release")
     project = FlexibleForeignKey("sentry.Project")
@@ -76,3 +83,14 @@ class ReleaseProjectEnvironment(Model):
             metrics_tags["bumped"] = "false"
 
         return instance
+
+    @property
+    def adoption_stages(self):
+        if self.adopted is not None and self.unadopted is None:
+            stage = ReleaseStages.ADOPTED
+        elif self.adopted is not None and self.unadopted is not None:
+            stage = ReleaseStages.REPLACED
+        else:
+            stage = ReleaseStages.LOW_ADOPTION
+
+        return {"stage": stage, "adopted": self.adopted, "unadopted": self.unadopted}

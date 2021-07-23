@@ -35,3 +35,30 @@ export const BACKEND_COLUMN_TITLES = [
   'users',
   'user misery',
 ];
+
+export const MOBILE_COLUMN_TITLES = [
+  'transaction',
+  'project',
+  'operation',
+  'tpm',
+  'cold start',
+  'warm start',
+  'slow frame %',
+  'frozen frame %',
+  'users',
+  'user misery',
+];
+
+export const REACT_NATIVE_COLUMN_TITLES = [
+  'transaction',
+  'project',
+  'operation',
+  'tpm',
+  'cold start',
+  'warm start',
+  'slow frame %',
+  'frozen frame %',
+  'stall %',
+  'users',
+  'user misery',
+];

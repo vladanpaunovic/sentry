@@ -94,7 +94,7 @@ class UserOptionManager(OptionManager):
         )
 
 
-# TODO(dcramer): the NULL UNIQUE constraint here isnt valid, and instead has to
+# TODO(dcramer): the NULL UNIQUE constraint here isn't valid, and instead has to
 # be manually replaced in the database. We should restructure this model.
 class UserOption(Model):
     """
@@ -145,7 +145,7 @@ class UserOption(Model):
         - unused
     """
 
-    __core__ = True
+    __include_in_export__ = True
 
     user = FlexibleForeignKey(settings.AUTH_USER_MODEL)
     project = FlexibleForeignKey("sentry.Project", null=True)

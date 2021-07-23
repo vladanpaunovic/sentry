@@ -169,7 +169,7 @@ export function generateTrendFunctionAsString(
 ): string {
   return generateFieldAsString({
     kind: 'function',
-    function: [trendFunction as AggregationKey, trendParameter, undefined],
+    function: [trendFunction as AggregationKey, trendParameter, undefined, undefined],
   });
 }
 
@@ -258,7 +258,7 @@ function getQueryInterval(location: Location, eventView: TrendView) {
     period: statsPeriod,
   };
 
-  const intervalFromSmoothing = getInterval(datetimeSelection, true);
+  const intervalFromSmoothing = getInterval(datetimeSelection, 'high');
 
   return intervalFromQueryParam || intervalFromSmoothing;
 }

@@ -3,7 +3,10 @@ from rest_framework.negotiation import BaseContentNegotiation
 from sentry.api.bases.organization import OrganizationEndpoint, OrganizationPermission
 from sentry.models import AuthProvider
 
+from .constants import SCIM_API_LIST
+
 SCIM_CONTENT_TYPES = ["application/json", "application/json+scim"]
+ACCEPTED_FILTERED_KEYS = ["userName", "value", "displayName"]
 
 
 class SCIMClientNegotiation(BaseContentNegotiation):
@@ -27,14 +30,6 @@ class SCIMClientNegotiation(BaseContentNegotiation):
 
 
 class OrganizationSCIMPermission(OrganizationPermission):
-    scope_map = {
-        "GET": ["member:read", "member:write", "member:admin"],
-        "POST": ["member:write", "member:admin"],
-        "PATCH": ["member:write", "member:admin"],
-        "PUT": ["member:write", "member:admin"],
-        "DELETE": ["member:admin"],
-    }
-
     def has_object_permission(self, request, view, organization):
         result = super().has_object_permission(request, view, organization)
         # The scim endpoints should only be used in conjunction with a SAML2 integration
@@ -50,13 +45,40 @@ class OrganizationSCIMPermission(OrganizationPermission):
         return True
 
 
+class OrganizationSCIMMemberPermission(OrganizationSCIMPermission):
+    scope_map = {
+        "GET": ["member:read", "member:write", "member:admin"],
+        "POST": ["member:write", "member:admin"],
+        "PATCH": ["member:write", "member:admin"],
+        "PUT": ["member:write", "member:admin"],
+        "DELETE": ["member:admin"],
+    }
+
+
+class OrganizationSCIMTeamPermission(OrganizationSCIMPermission):
+    scope_map = {
+        "GET": ["team:read", "team:write", "team:admin"],
+        "POST": ["team:write", "team:admin"],
+        "PATCH": ["team:write", "team:admin"],
+        "DELETE": ["team:admin"],
+    }
+
+
 class SCIMEndpoint(OrganizationEndpoint):
-    permission_classes = (OrganizationSCIMPermission,)
     content_negotiation_class = SCIMClientNegotiation
     cursor_name = "startIndex"
 
     def add_cursor_headers(self, request, response, cursor_result):
         pass
+
+    def list_api_format(self, request, total_results, results):
+        return {
+            "schemas": [SCIM_API_LIST],
+            "totalResults": total_results,  # TODO: audit perf of queryset.count()
+            "startIndex": int(request.GET.get("startIndex", 1)),  # must be integer
+            "itemsPerPage": len(results),  # what's max?
+            "Resources": results,
+        }
 
 
 def parse_filter_conditions(raw_filters):
@@ -68,8 +90,6 @@ def parse_filter_conditions(raw_filters):
     operator. the input would look like so:
     userName eq "test.user@okta.local"
 
-    the only field we support filtering on is userName, so this function
-    simply returns the email within the above quotes currently.
     We may want to support further SCIM grammar for other IDPs and may use
     a package to replace this functionality.
     """
@@ -80,7 +100,6 @@ def parse_filter_conditions(raw_filters):
     if raw_filters is None:
         return filters
     conditions = raw_filters.split(",")
-
     for c in conditions:
         [key, value] = c.split(" eq ")
         if not key or not value:
@@ -89,19 +108,17 @@ def parse_filter_conditions(raw_filters):
         key = key.strip()
         value = value.strip()
 
-        # For USERS: Unique username should always be lowercase
-        if key == "userName":
-            value = value.lower()
-        else:
-            raise ValueError  # only support the userName field right now
+        value = value[1:-1]
 
-        if value[0] == '"' and value[-1] == '"':
-            value = value.replace('"', "")
-        if value[0] == "'" and value[-1] == "'":
-            value = value.replace("'", "")
+        if key not in ACCEPTED_FILTERED_KEYS:
+            raise ValueError
+
+        if key == "value":
+            value = int(value)
+
         filters.append([key, value])
 
-    if len(filters) == 1 and filters[0][0] == "userName":
+    if len(filters) == 1:
         filter_val = [filters[0][1]]
     else:
         filter_val = []

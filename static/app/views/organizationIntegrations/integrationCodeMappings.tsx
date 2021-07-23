@@ -68,8 +68,8 @@ class IntegrationCodeMappings extends AsyncComponent<Props, State> {
   }
 
   get repos() {
-    //endpoint doesn't support loading only the repos for this integration
-    //but most people only have one source code repo so this should be fine
+    // endpoint doesn't support loading only the repos for this integration
+    // but most people only have one source code repo so this should be fine
     return this.state.repos.filter(repo => repo.integrationId === this.integrationId);
   }
 
@@ -194,7 +194,7 @@ class IntegrationCodeMappings extends AsyncComponent<Props, State> {
             `Code Mappings are used to map stack trace file paths to source code file paths. These mappings are the basis for features like Stack Trace Linking. To learn more, [link: read the docs].`,
             {
               link: (
-                <ExternalLink href="https://docs.sentry.io/product/integrations/gitlab/#stack-trace-linking" />
+                <ExternalLink href="https://docs.sentry.io/product/integrations/source-code-mgmt/gitlab/#stack-trace-linking" />
               ),
             }
           )}

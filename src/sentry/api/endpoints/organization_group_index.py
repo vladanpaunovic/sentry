@@ -35,6 +35,7 @@ from sentry.models import (
     GroupStatus,
     Project,
 )
+from sentry.search.events.constants import EQUALITY_OPERATORS
 from sentry.search.snuba.backend import (
     EventsDatasetSnubaSearchBackend,
     assigned_or_suggested_filter,
@@ -226,7 +227,6 @@ class OrganizationGroupIndexEndpoint(OrganizationEventsEndpointBase):
 
         expand = request.GET.getlist("expand", [])
         collapse = request.GET.getlist("collapse", [])
-        has_inbox = features.has("organizations:inbox", organization, actor=request.user)
         if stats_period not in (None, "", "24h", "14d", "auto"):
             return Response({"detail": ERR_INVALID_STATS_PERIOD}, status=400)
         stats_period, stats_period_start, stats_period_end = calculate_stats_period(
@@ -243,7 +243,6 @@ class OrganizationGroupIndexEndpoint(OrganizationEventsEndpointBase):
             stats_period_end=stats_period_end,
             expand=expand,
             collapse=collapse,
-            has_inbox=has_inbox,
         )
 
         projects = self.get_projects(request, organization)
@@ -326,6 +325,7 @@ class OrganizationGroupIndexEndpoint(OrganizationEventsEndpointBase):
                 search_filters=query_kwargs["search_filters"]
                 if "search_filters" in query_kwargs
                 else None,
+                organization_id=organization.id,
             ),
         )
 
@@ -335,7 +335,7 @@ class OrganizationGroupIndexEndpoint(OrganizationEventsEndpointBase):
         status = [
             search_filter
             for search_filter in query_kwargs.get("search_filters", [])
-            if search_filter.key.name == "status"
+            if search_filter.key.name == "status" and search_filter.operator in EQUALITY_OPERATORS
         ]
         if status and (GroupStatus.UNRESOLVED in status[0].value.raw_value):
             status_labels = {QUERY_STATUS_LOOKUP[s] for s in status[0].value.raw_value}
@@ -412,7 +412,6 @@ class OrganizationGroupIndexEndpoint(OrganizationEventsEndpointBase):
         :auth: required
         """
         projects = self.get_projects(request, organization)
-        has_inbox = features.has("organizations:inbox", organization, actor=request.user)
         if len(projects) > 1 and not features.has(
             "organizations:global-views", organization, actor=request.user
         ):
@@ -429,7 +428,7 @@ class OrganizationGroupIndexEndpoint(OrganizationEventsEndpointBase):
         )
 
         return update_groups(
-            request, request.GET.getlist("id"), projects, organization.id, search_fn, has_inbox
+            request, request.GET.getlist("id"), projects, organization.id, search_fn
         )
 
     @track_slo_response("workflow")

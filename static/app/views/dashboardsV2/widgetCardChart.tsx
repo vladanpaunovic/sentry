@@ -157,14 +157,8 @@ class WidgetCardChart extends React.Component<WidgetCardChartProps> {
   }
 
   render() {
-    const {
-      theme,
-      tableResults,
-      timeseriesResults,
-      errorMessage,
-      loading,
-      widget,
-    } = this.props;
+    const {theme, tableResults, timeseriesResults, errorMessage, loading, widget} =
+      this.props;
 
     if (widget.displayType === 'table') {
       return (
@@ -377,10 +371,6 @@ const StyledSimpleTableChart = styled(SimpleTableChart)`
   border-bottom-right-radius: ${p => p.theme.borderRadius};
   font-size: ${p => p.theme.fontSizeMedium};
   box-shadow: none;
-
-  > div {
-    padding: ${space(1)} ${space(3)};
-  }
 `;
 
 export default withTheme(WidgetCardChart);

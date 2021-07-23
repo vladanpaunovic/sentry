@@ -49,7 +49,7 @@ from sentry.notifications.helpers import (
 )
 from sentry.notifications.types import NotificationSettingOptionValues, NotificationSettingTypes
 from sentry.reprocessing2 import get_progress
-from sentry.search.events.constants import SEMVER_ALIAS
+from sentry.search.events.constants import RELEASE_STAGE_ALIAS
 from sentry.search.events.filter import convert_search_filter_to_snuba_query
 from sentry.tagstore.snuba.backend import fix_tag_value_data
 from sentry.tsdb.snuba import SnubaTSDB
@@ -78,17 +78,12 @@ class GroupSerializerBase(Serializer):
         self,
         collapse=None,
         expand=None,
-        has_inbox=False,
     ):
         self.collapse = collapse
         self.expand = expand
-        self.has_inbox = has_inbox
 
     def _expand(self, key):
         if self.expand is None:
-            return False
-
-        if key == "inbox" and not self.has_inbox:
             return False
 
         return key in self.expand
@@ -314,7 +309,7 @@ class GroupSerializerBase(Serializer):
             return {}
         if len(organization_id_list) > 1:
             # this should never happen but if it does we should know about it
-            logger.warn(
+            logger.warning(
                 "Found multiple organizations for groups: %s, with orgs: %s"
                 % ([item.id for item in item_list], organization_id_list)
             )
@@ -757,10 +752,10 @@ class GroupSerializerSnuba(GroupSerializerBase):
         "times_seen",
         "date",  # We merge this with start/end, so don't want to include it as its own
         # condition
-        # We don't need to filter by the semver query again here since we're
+        # We don't need to filter by release stage again here since we're
         # filtering to specific groups. Saves us making a second query to
         # postgres for no reason
-        SEMVER_ALIAS,
+        RELEASE_STAGE_ALIAS,
     }
 
     def __init__(
@@ -771,13 +766,9 @@ class GroupSerializerSnuba(GroupSerializerBase):
         search_filters=None,
         collapse=None,
         expand=None,
-        has_inbox=False,
+        organization_id=None,
     ):
-        super().__init__(
-            collapse=collapse,
-            expand=expand,
-            has_inbox=has_inbox,
-        )
+        super().__init__(collapse=collapse, expand=expand)
         from sentry.search.snuba.executors import get_search_filter
 
         self.environment_ids = environment_ids
@@ -797,7 +788,9 @@ class GroupSerializerSnuba(GroupSerializerBase):
 
         self.conditions = (
             [
-                convert_search_filter_to_snuba_query(search_filter)
+                convert_search_filter_to_snuba_query(
+                    search_filter, params={"organization_id": organization_id}
+                )
                 for search_filter in search_filters
                 if search_filter.key.name not in self.skip_snuba_fields
             ]
@@ -889,7 +882,7 @@ class StreamGroupSerializerSnuba(GroupSerializerSnuba, GroupStatsMixin):
         search_filters=None,
         collapse=None,
         expand=None,
-        has_inbox=False,
+        organization_id=None,
     ):
         super().__init__(
             environment_ids,
@@ -898,7 +891,7 @@ class StreamGroupSerializerSnuba(GroupSerializerSnuba, GroupStatsMixin):
             search_filters,
             collapse=collapse,
             expand=expand,
-            has_inbox=has_inbox,
+            organization_id=organization_id,
         )
 
         if stats_period is not None:

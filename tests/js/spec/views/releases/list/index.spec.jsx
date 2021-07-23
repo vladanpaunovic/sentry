@@ -13,6 +13,7 @@ describe('ReleasesList', function () {
     organization,
     selection: {
       projects: [],
+      environments: [],
       datetime: {
         period: '14d',
       },
@@ -67,6 +68,7 @@ describe('ReleasesList', function () {
   });
 
   afterEach(function () {
+    wrapper.unmount();
     ProjectsStore.reset();
     MockApiClient.clearMockResponses();
   });
@@ -78,7 +80,7 @@ describe('ReleasesList', function () {
     expect(items.at(0).text()).toContain('1.0.0');
     expect(items.at(0).text()).toContain('Adoption');
     expect(items.at(1).text()).toContain('1.0.1');
-    expect(items.at(1).find('CountColumn').at(1).text()).toContain('\u2014');
+    expect(items.at(1).find('AdoptionColumn').at(1).text()).toContain('\u2014');
     expect(items.at(2).text()).toContain('af4f231ec9a8');
     expect(items.at(2).find('Header').text()).toContain('Project');
   });
@@ -133,6 +135,15 @@ describe('ReleasesList', function () {
       'There are no releases with active user data (users in the last 24 hours).'
     );
 
+    location = {query: {sort: SortOption.SESSIONS_24_HOURS, statsPeriod: '7d'}};
+    wrapper = mountWithTheme(
+      <ReleasesList {...props} location={location} />,
+      routerContext
+    );
+    expect(wrapper.find('EmptyMessage').text()).toEqual(
+      'There are no releases with active session data (sessions in the last 24 hours).'
+    );
+
     location = {query: {sort: SortOption.BUILD}};
     wrapper = mountWithTheme(
       <ReleasesList {...props} location={location} />,
@@ -141,6 +152,23 @@ describe('ReleasesList', function () {
     expect(wrapper.find('EmptyMessage').text()).toEqual(
       'There are no releases with semantic versioning.'
     );
+  });
+
+  it('displays request errors', function () {
+    const errorMessage = 'dumpster fire';
+    MockApiClient.addMockResponse({
+      url: '/organizations/org-slug/releases/',
+      body: {
+        detail: errorMessage,
+      },
+      statusCode: 400,
+    });
+
+    wrapper = mountWithTheme(<ReleasesList {...props} />, routerContext);
+    expect(wrapper.find('LoadingError').text()).toBe(errorMessage);
+
+    // we want release header to be visible despite the error message
+    expect(wrapper.find('SortAndFilterWrapper').exists()).toBeTruthy();
   });
 
   it('searches for a release', function () {
@@ -176,11 +204,11 @@ describe('ReleasesList', function () {
     const sortByOptions = sortDropdown.find('DropdownItem span');
 
     const dateCreatedOption = sortByOptions.at(0);
-    expect(sortByOptions).toHaveLength(5);
+    expect(sortByOptions).toHaveLength(4);
     expect(dateCreatedOption.text()).toEqual('Date Created');
 
-    const healthStatsControls = wrapper.find('CountColumn span').first();
-    expect(healthStatsControls.text()).toEqual('Count');
+    const healthStatsControls = wrapper.find('AdoptionColumn span').first();
+    expect(healthStatsControls.text()).toEqual('Adoption');
 
     dateCreatedOption.simulate('click');
 
@@ -341,7 +369,7 @@ describe('ReleasesList', function () {
       ],
     });
     const healthSection = mountWithTheme(
-      <ReleasesList {...props} selection={{projects: [2]}} />,
+      <ReleasesList {...props} selection={{...props.selection, projects: [2]}} />,
       routerContext
     ).find('ReleaseHealth');
     const hiddenProjectsMessage = healthSection.find('HiddenProjectsMessage');
@@ -361,12 +389,54 @@ describe('ReleasesList', function () {
       body: [TestStubs.Release({version: '2.0.0'})],
     });
     const healthSection = mountWithTheme(
-      <ReleasesList {...props} selection={{projects: [-1]}} />,
+      <ReleasesList {...props} selection={{...props.selection, projects: [-1]}} />,
       routerContext
     ).find('ReleaseHealth');
 
     expect(healthSection.find('HiddenProjectsMessage').exists()).toBeFalsy();
 
     expect(healthSection.find('ProjectRow').length).toBe(1);
+  });
+
+  it('autocompletes semver search tag', async function () {
+    MockApiClient.addMockResponse({
+      url: '/organizations/org-slug/tags/release.version/values/',
+      body: [
+        {
+          count: null,
+          firstSeen: null,
+          key: 'release.version',
+          lastSeen: null,
+          name: 'sentry@0.5.3',
+          value: 'sentry@0.5.3',
+        },
+      ],
+    });
+
+    const semverOrg = {...organization, features: ['semver']};
+    wrapper.setProps({...props, organization: semverOrg});
+    wrapper.find('SmartSearchBar textarea').simulate('click');
+    wrapper
+      .find('SmartSearchBar textarea')
+      .simulate('change', {target: {value: 'sentry.semv'}});
+
+    await tick();
+    wrapper.update();
+
+    expect(wrapper.find('[data-test-id="search-autocomplete-item"]').at(0).text()).toBe(
+      'release.version:'
+    );
+
+    wrapper.find('SmartSearchBar textarea').simulate('focus');
+    wrapper
+      .find('SmartSearchBar textarea')
+      .simulate('change', {target: {value: 'release.version:'}});
+
+    await tick();
+    wrapper.update();
+
+    expect(wrapper.find('[data-test-id="search-autocomplete-item"]').at(0).text()).toBe(
+      'sentry@0.5.3'
+    );
   });
 });

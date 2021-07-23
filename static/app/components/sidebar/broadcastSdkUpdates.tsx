@@ -44,7 +44,7 @@ const BroadcastSdkUpdates = ({projects, sdkUpdates}: Props) => {
       hasSeen
       title={t('Update your SDKs')}
       message={t(
-        'Seems like your SDKs could use a refresh. We recommend updating these SDKs to make sure you’re getting all the data you need.'
+        'We recommend updating the following SDKs to make sure you’re getting all the data you need.'
       )}
     >
       <UpdatesList>
@@ -75,6 +75,7 @@ const BroadcastSdkUpdates = ({projects, sdkUpdates}: Props) => {
                               },
                               suggestion,
                               shortStyle: true,
+                              capitalized: true,
                             })}
                           </ListItem>
                         ))}
@@ -95,15 +96,14 @@ const UpdatesList = styled('div')`
   margin-top: ${space(3)};
   display: grid;
   grid-auto-flow: row;
-  grid-gap: ${space(2)};
+  grid-gap: ${space(3)};
 `;
 
 const Suggestions = styled('div')`
-  margin-top: ${space(1)};
   margin-left: calc(${space(4)} + ${space(0.25)});
   display: grid;
   grid-auto-flow: row;
-  grid-gap: ${space(1.5)};
+  grid-gap: ${space(0.5)};
 `;
 
 const SdkProjectBadge = styled(ProjectBadge)`

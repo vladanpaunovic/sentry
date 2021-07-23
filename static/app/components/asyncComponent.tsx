@@ -174,7 +174,7 @@ export default class AsyncComponent<
   api: Client = new Client();
   private _measurement: any;
 
-  // XXX: cant call this getInitialState as React whines
+  // XXX: can't call this getInitialState as React whines
   getDefaultState(): AsyncComponentState {
     const endpoints = this.getEndpoints();
     const state = {
@@ -247,7 +247,7 @@ export default class AsyncComponent<
       let query = (params && params.query) || {};
       // If paginate option then pass entire `query` object to API call
       // It should only be expecting `query.cursor` for pagination
-      if (options.paginate || locationQuery.cursor) {
+      if ((options.paginate || locationQuery.cursor) && !options.disableEntireQuery) {
         query = {...locationQuery, ...query};
       }
 
@@ -270,7 +270,7 @@ export default class AsyncComponent<
     });
   };
 
-  onRequestSuccess(_resp /*{stateKey, data, jqXHR}*/) {
+  onRequestSuccess(_resp /* {stateKey, data, jqXHR} */) {
     // Allow children to implement this
   }
 
@@ -301,7 +301,7 @@ export default class AsyncComponent<
         return state;
       },
       () => {
-        //if everything is loaded and we don't have an error, call the callback
+        // if everything is loaded and we don't have an error, call the callback
         if (this.state.remainingRequests === 0 && !this.state.error) {
           this.onLoadAllEndpointsSuccess();
         }
@@ -432,7 +432,7 @@ export default class AsyncComponent<
         .map(resp => resp.responseJSON.detail);
 
       if (badRequests.length) {
-        return <LoadingError message={badRequests.join('\n')} />;
+        return <LoadingError message={[...new Set(badRequests)].join('\n')} />;
       }
     }
 

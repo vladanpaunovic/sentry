@@ -9,7 +9,7 @@ from sentry import tsdb
 from sentry.receivers.rules import DEFAULT_RULE_LABEL
 from sentry.rules.conditions.base import EventCondition
 from sentry.utils import metrics
-from sentry.utils.snuba import Dataset, raw_query
+from sentry.utils.snuba import Dataset, options_override, raw_query
 
 standard_intervals = {
     "1m": ("one minute", timedelta(minutes=1)),
@@ -132,11 +132,11 @@ class EventUniqueUserFrequencyCondition(BaseEventFrequencyCondition):
 
 
 percent_intervals = {
-    "1m": ("one minute", timedelta(minutes=1)),
-    "5m": ("five minutes", timedelta(minutes=5)),
-    "10m": ("ten minutes", timedelta(minutes=10)),
+    "1m": ("1 minute", timedelta(minutes=1)),
+    "5m": ("5 minutes", timedelta(minutes=5)),
+    "10m": ("10 minutes", timedelta(minutes=10)),
     "30m": ("30 minutes", timedelta(minutes=30)),
-    "1h": ("one hour", timedelta(minutes=60)),
+    "1h": ("1 hour", timedelta(minutes=60)),
 }
 
 
@@ -155,7 +155,7 @@ class EventFrequencyPercentForm(EventFrequencyForm):
 
 
 class EventFrequencyPercentCondition(BaseEventFrequencyCondition):
-    label = "The issue has more errors than {value} percent of sessions in {interval}"
+    label = "The issue affects more than {value} percent of sessions in {interval}"
 
     def __init__(self, *args, **kwargs):
         self.intervals = percent_intervals
@@ -170,16 +170,18 @@ class EventFrequencyPercentCondition(BaseEventFrequencyCondition):
             filters = {"project_id": [project_id]}
             if environment_id:
                 filters["environment"] = [environment_id]
-            result_totals = raw_query(
-                selected_columns=["sessions"],
-                rollup=60,
-                dataset=Dataset.Sessions,
-                start=end - timedelta(minutes=60),
-                end=end,
-                filter_keys=filters,
-                groupby=["bucketed_started"],
-                referrer="rules.conditions.event_frequency.EventFrequencyPercentCondition",
-            )
+            with options_override({"consistent": False}):
+                result_totals = raw_query(
+                    selected_columns=["sessions"],
+                    rollup=60,
+                    dataset=Dataset.Sessions,
+                    start=end - timedelta(minutes=60),
+                    end=end,
+                    filter_keys=filters,
+                    groupby=["bucketed_started"],
+                    referrer="rules.conditions.event_frequency.EventFrequencyPercentCondition",
+                )
+
             if result_totals["data"]:
                 session_count_last_hour = sum(
                     bucket["sessions"] for bucket in result_totals["data"]

@@ -70,8 +70,6 @@ DEBUG = IS_DEV
 
 ADMIN_ENABLED = DEBUG
 
-MAINTENANCE = False
-
 ADMINS = ()
 
 # Hosts that are considered in the same network (including VPNs).
@@ -276,16 +274,13 @@ USE_TZ = True
 # so that responses aren't modified after Content-Length is set, or have the
 # response modifying middleware reset the Content-Length header.
 # This is because CommonMiddleware Sets the Content-Length header for non-streaming responses.
-MIDDLEWARE_CLASSES = (
-    "sentry.middleware.proxy.DecompressBodyMiddleware",
+MIDDLEWARE = (
+    "sentry.middleware.health.HealthCheck",
     "sentry.middleware.security.SecurityHeadersMiddleware",
-    "sentry.middleware.maintenance.ServicesUnavailableMiddleware",
     "sentry.middleware.env.SentryEnvMiddleware",
     "sentry.middleware.proxy.SetRemoteAddrFromForwardedFor",
-    "sentry.middleware.debug.NoIfModifiedSinceMiddleware",
     "sentry.middleware.stats.RequestTimingMiddleware",
     "sentry.middleware.stats.ResponseCodeMiddleware",
-    "sentry.middleware.health.HealthCheck",  # Must exist before CommonMiddleware
     "django.middleware.common.CommonMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -332,7 +327,6 @@ INSTALLED_APPS = (
     "django.contrib.sites",
     "crispy_forms",
     "rest_framework",
-    "manifest_loader",
     "sentry",
     "sentry.analytics",
     "sentry.incidents.apps.Config",
@@ -372,15 +366,12 @@ STATIC_ROOT = os.path.realpath(os.path.join(PROJECT_ROOT, "static"))
 STATIC_URL = "/_static/{version}/"
 # webpack assets live at a different URL that is unversioned
 # as we configure webpack to include file content based hash in the filename
-STATIC_MANIFEST_URL = "/_static/dist/"
+STATIC_UNVERSIONED_URL = "/_static/dist/"
 
-# The webpack output directory, used by django-manifest-loader
+# The webpack output directory
 STATICFILES_DIRS = [
     os.path.join(STATIC_ROOT, "sentry", "dist"),
 ]
-
-# django-manifest-loader settings
-MANIFEST_LOADER = {"cache": True}
 
 # various middleware will use this to identify resources which should not access
 # cookies
@@ -539,10 +530,11 @@ CELERY_IMPORTS = (
     "sentry.discover.tasks",
     "sentry.incidents.tasks",
     "sentry.snuba.tasks",
+    "sentry.tasks.app_store_connect",
     "sentry.tasks.assemble",
     "sentry.tasks.auth",
-    "sentry.tasks.auto_resolve_issues",
     "sentry.tasks.auto_remove_inbox",
+    "sentry.tasks.auto_resolve_issues",
     "sentry.tasks.beacon",
     "sentry.tasks.check_auth",
     "sentry.tasks.check_monitors",
@@ -557,10 +549,13 @@ CELERY_IMPORTS = (
     "sentry.tasks.integrations",
     "sentry.tasks.members",
     "sentry.tasks.merge",
+    "sentry.tasks.releasemonitor",
     "sentry.tasks.options",
     "sentry.tasks.ping",
     "sentry.tasks.post_process",
     "sentry.tasks.process_buffer",
+    "sentry.tasks.relay",
+    "sentry.tasks.release_registry",
     "sentry.tasks.reports",
     "sentry.tasks.reprocessing",
     "sentry.tasks.scheduler",
@@ -570,41 +565,46 @@ CELERY_IMPORTS = (
     "sentry.tasks.store",
     "sentry.tasks.unmerge",
     "sentry.tasks.update_user_reports",
-    "sentry.tasks.relay",
-    "sentry.tasks.release_registry",
 )
 CELERY_QUEUES = [
     Queue("activity.notify", routing_key="activity.notify"),
     Queue("alerts", routing_key="alerts"),
     Queue("app_platform", routing_key="app_platform"),
-    Queue("auth", routing_key="auth"),
+    Queue("appstoreconnect", routing_key="sentry.tasks.app_store_connect.#"),
     Queue("assemble", routing_key="assemble"),
+    Queue("auth", routing_key="auth"),
     Queue("buffers.process_pending", routing_key="buffers.process_pending"),
-    Queue("commits", routing_key="commits"),
     Queue("cleanup", routing_key="cleanup"),
+    Queue("code_owners", routing_key="code_owners"),
+    Queue("commits", routing_key="commits"),
     Queue("data_export", routing_key="data_export"),
     Queue("default", routing_key="default"),
     Queue("digests.delivery", routing_key="digests.delivery"),
     Queue("digests.scheduling", routing_key="digests.scheduling"),
     Queue("email", routing_key="email"),
     Queue("events.preprocess_event", routing_key="events.preprocess_event"),
+    Queue("events.process_event", routing_key="events.process_event"),
+    Queue("events.reprocess_events", routing_key="events.reprocess_events"),
     Queue(
         "events.reprocessing.preprocess_event", routing_key="events.reprocessing.preprocess_event"
     ),
-    Queue("events.symbolicate_event", routing_key="events.symbolicate_event"),
+    Queue("events.reprocessing.process_event", routing_key="events.reprocessing.process_event"),
     Queue(
         "events.reprocessing.symbolicate_event", routing_key="events.reprocessing.symbolicate_event"
     ),
-    Queue("events.process_event", routing_key="events.process_event"),
-    Queue("events.reprocessing.process_event", routing_key="events.reprocessing.process_event"),
-    Queue("events.reprocess_events", routing_key="events.reprocess_events"),
     Queue("events.save_event", routing_key="events.save_event"),
+    Queue("events.symbolicate_event", routing_key="events.symbolicate_event"),
     Queue("files.delete", routing_key="files.delete"),
     Queue(
         "group_owners.process_suspect_commits", routing_key="group_owners.process_suspect_commits"
     ),
+    Queue(
+        "releasemonitor",
+        routing_key="releasemonitor",
+    ),
     Queue("incidents", routing_key="incidents"),
     Queue("incident_snapshots", routing_key="incident_snapshots"),
+    Queue("incidents", routing_key="incidents"),
     Queue("integrations", routing_key="integrations"),
     Queue("merge", routing_key="merge"),
     Queue("options", routing_key="options"),
@@ -731,9 +731,19 @@ CELERYBEAT_SCHEDULE = {
         "schedule": timedelta(hours=1),
         "options": {"expires": 3600, "queue": "incidents"},
     },
+    "monitor-release-adoption": {
+        "task": "sentry.tasks.monitor_release_adoption",
+        "schedule": crontab(minute=0),
+        "options": {"expires": 3600, "queue": "releasemonitor"},
+    },
     "fetch-release-registry-data": {
         "task": "sentry.tasks.release_registry.fetch_release_registry_data",
         "schedule": timedelta(minutes=5),
+        "options": {"expires": 3600},
+    },
+    "fetch-appstore-builds": {
+        "task": "sentry.tasks.app_store_connect.refresh_all_builds",
+        "schedule": timedelta(hours=1),
         "options": {"expires": 3600},
     },
     "snuba-subscription-checker": {
@@ -887,13 +897,16 @@ SENTRY_FEATURES = {
     "organizations:custom-event-title": True,
     # Enable rule page.
     "organizations:rule-page": False,
-    # Enable experimental syntax highlightign on unified search
-    "organizations:search-syntax-highlight": False,
+    # Enable imporved syntax highlightign + autocomplete on unified search
+    "organizations:improved-search": False,
     # Enable incidents feature
     "organizations:incidents": False,
     # Enable the new Metrics page
     "organizations:metrics": False,
-    # Automatically extract metrics during ingestion
+    # Automatically extract metrics during ingestion.
+    #
+    # XXX(ja): DO NOT ENABLE UNTIL THIS NOTICE IS GONE. Relay experiences
+    # gradual slowdown when this is enabled for too many projects.
     "organizations:metrics-extraction": False,
     # Enable metric aggregate in metric alert rule builder
     "organizations:metric-alert-builder-aggregate": False,
@@ -985,26 +998,26 @@ SENTRY_FEATURES = {
     "organizations:transaction-comparison": False,
     # Return unhandled information on the issue level
     "organizations:unhandled-issue-flag": True,
-    # Enable inbox support in the issue stream
-    "organizations:inbox": True,
     # Enable percent-based conditions on issue rules
     "organizations:issue-percent-filters": False,
     # Enable the new alert details ux design
     "organizations:alert-details-redesign": True,
-    # Enable the new alert history filters
-    "organizations:alert-history-filters": False,
     # Enable the new images loaded design and features
     "organizations:images-loaded-v2": True,
-    # Enable teams to have ownership of alert rules
-    "organizations:team-alerts-ownership": False,
+    # Enable the mobile screenshots feature
+    "organizations:mobile-screenshots": False,
     # Enable the adoption chart in the releases page
     "organizations:release-adoption-chart": False,
     # Enable the release adoption stage labels and sorting+filtering by them
     "organizations:release-adoption-stage": False,
     # Store release bundles as zip files instead of single files
     "organizations:release-archives": False,
+    # Enable the new release details experience
+    "organizations:release-comparison": False,
     # Enable the project level transaction thresholds
     "organizations:project-transaction-threshold": False,
+    # Enable the transaction level thresholds
+    "organizations:project-transaction-threshold-override": False,
     # Enable percent displays in issue stream
     "organizations:issue-percent-display": False,
     # Adds additional filters and a new section to issue alert rules.
@@ -1028,8 +1041,6 @@ SENTRY_FEATURES = {
     "projects:race-free-group-creation": True,
     # Enable functionality for rate-limiting events on projects.
     "projects:rate-limits": True,
-    # Enable functionality for sampling of events on projects.
-    "projects:sample-events": False,
     # Enable functionality to trigger service hooks upon event ingestion.
     "projects:servicehooks": False,
     # Use Kafka (instead of Celery) for ingestion pipeline.
@@ -1424,9 +1435,8 @@ SENTRY_ROLES = (
         "id": "admin",
         "name": "Admin",
         "desc": "Admin privileges on any teams of which they're a member. They can create new teams and projects, "
-        "as well as remove teams and projects which they already hold membership on (or all teams, "
-        "if open membership is on). Additionally, they can manage memberships of teams that they are members "
-        "of.",
+        "as well as remove teams and projects on which they already hold membership (or all teams, if open membership is enabled). "
+        "Additionally, they can manage memberships of teams that they are members of. They cannot invite members to the organization.",
         "scopes": {
             "event:read",
             "event:write",
@@ -1542,7 +1552,7 @@ SENTRY_WATCHERS = (
             "--output-pathinfo=true",
             "--config={}".format(
                 os.path.normpath(
-                    os.path.join(PROJECT_ROOT, os.pardir, os.pardir, "webpack.config.js")
+                    os.path.join(PROJECT_ROOT, os.pardir, os.pardir, "webpack.config.ts")
                 )
             ),
         ],
@@ -2234,6 +2244,3 @@ DEMO_DATA_QUICK_GEN_PARAMS = {}
 
 # adds an extra JS to HTML template
 INJECTED_SCRIPT_ASSETS = []
-
-# adds mobile projects
-DEMO_MOBILE_PROJECTS = False

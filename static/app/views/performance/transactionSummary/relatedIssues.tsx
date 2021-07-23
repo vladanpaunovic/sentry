@@ -16,7 +16,7 @@ import {OrganizationSummary} from 'app/types';
 import {trackAnalyticsEvent} from 'app/utils/analytics';
 import {TRACING_FIELDS} from 'app/utils/discover/fields';
 import {decodeScalar} from 'app/utils/queryString';
-import {stringifyQueryObject, tokenizeSearch} from 'app/utils/tokenizeSearch';
+import {tokenizeSearch} from 'app/utils/tokenizeSearch';
 
 type Props = {
   organization: OrganizationSummary;
@@ -56,7 +56,7 @@ class RelatedIssues extends Component<Props> {
         searchKey.match(/\w+\(.*\)/) ||
         // transaction event fields
         TRACING_FIELDS.includes(searchKey) ||
-        // tags that we dont want to pass to pass to issue search
+        // tags that we don't want to pass to pass to issue search
         EXCLUDE_TAG_KEYS.has(searchKey)
       ) {
         currentFilter.removeTag(tagKey);
@@ -68,7 +68,7 @@ class RelatedIssues extends Component<Props> {
       path: `/organizations/${organization.slug}/issues/`,
       queryParams: {
         ...queryParams,
-        query: stringifyQueryObject(currentFilter),
+        query: currentFilter.formatString(),
       },
     };
   }

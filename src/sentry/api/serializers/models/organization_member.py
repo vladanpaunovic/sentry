@@ -11,7 +11,7 @@ from sentry.models import (
     TeamStatus,
     User,
 )
-from sentry.scim.endpoints.constants import SCIM_SCHEMA_USER  # type: ignore
+from sentry.scim.endpoints.constants import SCIM_SCHEMA_USER
 from sentry.utils.json import JSONData
 
 
@@ -202,7 +202,7 @@ class OrganizationMemberSCIMSerializer(Serializer):  # type: ignore
 
         d = {
             "schemas": [SCIM_SCHEMA_USER],
-            "id": obj.id,
+            "id": str(obj.id),
             "userName": obj.get_email(),  # TODO: does this get weird with secondary emails?
             "name": {"givenName": "N/A", "familyName": "N/A"},
             "emails": [

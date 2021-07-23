@@ -21,7 +21,10 @@ const defaultProps = {
   hideGuide: false,
 };
 
-type Props = {
+type Props = Pick<
+  React.ComponentProps<typeof Content>,
+  'groupingCurrentLevel' | 'hasGroupingTreeUI'
+> & {
   event: Event;
   projectId: Project['id'];
   type: string;
@@ -91,7 +94,15 @@ class Threads extends Component<Props, State> {
   };
 
   render() {
-    const {data, event, projectId, hideGuide, type} = this.props;
+    const {
+      data,
+      event,
+      projectId,
+      hideGuide,
+      type,
+      hasGroupingTreeUI,
+      groupingCurrentLevel,
+    } = this.props;
 
     if (!data.values) {
       return null;
@@ -106,7 +117,7 @@ class Threads extends Component<Props, State> {
       ? getThreadStacktrace(stackType !== STACK_TYPE.ORIGINAL, activeThread)
       : undefined;
 
-    const hasMissingStacktrace = !(exception || stacktrace);
+    const stackTraceNotFound = !(exception || stacktrace);
     const hasMoreThanOneThread = threads.length > 1;
 
     return (
@@ -136,12 +147,12 @@ class Threads extends Component<Props, State> {
               title={t('Stack Trace')}
               newestFirst={newestFirst}
               hideGuide={hideGuide}
-              onChange={this.handleChangeNewestFirst}
+              onChange={!stackTraceNotFound ? this.handleChangeNewestFirst : undefined}
             />
           )
         }
         actions={
-          !hasMissingStacktrace && (
+          !stackTraceNotFound && (
             <CrashActions
               stackView={stackView}
               platform={event.platform}
@@ -150,6 +161,7 @@ class Threads extends Component<Props, State> {
               thread={hasMoreThanOneThread ? activeThread : undefined}
               exception={exception}
               onChange={this.handleChangeStackView}
+              hasGroupingTreeUI={hasGroupingTreeUI}
             />
           )
         }
@@ -165,7 +177,9 @@ class Threads extends Component<Props, State> {
           event={event}
           newestFirst={newestFirst}
           projectId={projectId}
-          hasMissingStacktrace={hasMissingStacktrace}
+          groupingCurrentLevel={groupingCurrentLevel}
+          stackTraceNotFound={stackTraceNotFound}
+          hasGroupingTreeUI={hasGroupingTreeUI}
         />
       </EventDataSection>
     );
