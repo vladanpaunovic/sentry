@@ -1,5 +1,6 @@
 import styled from '@emotion/styled';
 import groupBy from 'lodash/groupBy';
+import partition from 'lodash/partition';
 
 import ProjectBadge from 'app/components/idBadge/projectBadge';
 import Tag from 'app/components/tag';
@@ -39,14 +40,62 @@ function BroadcastSdkUpdates({projects, sdkUpdates}: Props) {
     return null;
   }
 
-  const deprecatedRavenSdkUpdates = sdkUpdates.filter(
+  function renderUpdates(projectSdkUpdates: ProjectSdkUpdates[]) {
+    // Group SDK updates by project
+    const items = Object.entries(groupBy(projectSdkUpdates, 'projectId'));
+
+    return items
+      .map(([projectId, updates]) => {
+        const project = projects.find(p => p.id === projectId);
+        if (!project) {
+          return null;
+        }
+
+        return updates.map(({sdkName, sdkVersion, suggestions}) => {
+          const isDeprecated = suggestions.some(
+            suggestion => suggestion.type === 'changeSdk'
+          );
+          return (
+            <div key={sdkName}>
+              <Header>
+                <SdkProjectBadge project={project} />
+                {isDeprecated && <Tag type="warning">{t('Deprecated')}</Tag>}
+              </Header>
+              <SdkOutdatedVersion>
+                {tct('This project is on [current-version]', {
+                  ['current-version']: (
+                    <OutdatedVersion>{`${sdkName}@v${sdkVersion}`}</OutdatedVersion>
+                  ),
+                })}
+              </SdkOutdatedVersion>
+              <StyledList>
+                {suggestions.map((suggestion, i) => (
+                  <ListItem key={i}>
+                    {getSdkUpdateSuggestion({
+                      sdk: {
+                        name: sdkName,
+                        version: sdkVersion,
+                      },
+                      suggestion,
+                      shortStyle: true,
+                      capitalized: true,
+                    })}
+                  </ListItem>
+                ))}
+              </StyledList>
+            </div>
+          );
+        });
+      })
+      .filter(item => !!item);
+  }
+
+  const [deprecatedRavenSdkUpdates, otherSdkUpdates] = partition(
+    sdkUpdates,
     sdkUpdate =>
       sdkUpdate.sdkName.includes('raven') &&
       sdkUpdate.suggestions.some(suggestion => suggestion.type === 'changeSdk')
   );
-
-  // Group SDK updates by project
-  const items = Object.entries(groupBy(sdkUpdates, 'projectId'));
 
   return (
     <SidebarPanelItem
@@ -71,51 +120,9 @@ function BroadcastSdkUpdates({projects, sdkUpdates}: Props) {
         </StyledAlert>
       )}
       <UpdatesList>
-        <Collapsible maxVisibleItems={5}>
-          {items
-            .map(([projectId, updates]) => {
-              const project = projects.find(p => p.id === projectId);
-              if (!project) {
-                return null;
-              }
-
-              return updates.map(({sdkName, sdkVersion, suggestions}) => {
-                const isDeprecated = suggestions.some(
-                  suggestion => suggestion.type === 'changeSdk'
-                );
-                return (
-                  <div key={sdkName}>
-                    <Header>
-                      <SdkProjectBadge project={project} />
-                      {isDeprecated && <Tag type="warning">{t('Deprecated')}</Tag>}
-                    </Header>
-                    <SdkOutdatedVersion>
-                      {tct('This project is on [current-version]', {
-                        ['current-version']: (
-                          <OutdatedVersion>{`${sdkName}@v${sdkVersion}`}</OutdatedVersion>
-                        ),
-                      })}
-                    </SdkOutdatedVersion>
-                    <StyledList>
-                      {suggestions.map((suggestion, i) => (
-                        <ListItem key={i}>
-                          {getSdkUpdateSuggestion({
-                            sdk: {
-                              name: sdkName,
-                              version: sdkVersion,
-                            },
-                            suggestion,
-                            shortStyle: true,
-                            capitalized: true,
-                          })}
-                        </ListItem>
-                      ))}
-                    </StyledList>
-                  </div>
-                );
-              });
-            })
-            .filter(item => !!item)}
+        <Collapsible>
+          {renderUpdates(deprecatedRavenSdkUpdates)}
+          {renderUpdates(otherSdkUpdates)}
         </Collapsible>
       </UpdatesList>
     </SidebarPanelItem>
