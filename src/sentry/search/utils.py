@@ -4,7 +4,14 @@ from datetime import datetime, timedelta
 from django.db import DataError
 from django.utils import timezone
 
-from sentry.models import KEYWORD_MAP, EventUser, Release, Team, User
+from sentry.models import (
+    KEYWORD_MAP,
+    EventUser,
+    Release,
+    Team,
+    User,
+    follows_semver_versioning_scheme,
+)
 from sentry.models.group import STATUS_QUERY_CHOICES
 from sentry.search.base import ANY
 from sentry.utils.auth import find_users
@@ -269,12 +276,17 @@ def get_latest_release(projects, environments, organization_id=None):
             ]
         )
 
-    return (
-        release_qs.extra(select={"sort": "COALESCE(date_released, date_added)"})
-        .order_by("-sort")
-        .values_list("version", flat=True)[:1]
-        .get()
-    )
+    if len(projects) == 1 and follows_semver_versioning_scheme(
+        organization_id, getattr(projects[0], "id", projects[0])
+    ):
+        order_by = [f"-{col}" for col in Release.SEMVER_COLS]
+        release_qs = release_qs.filter_to_semver().annotate_prerelease_column().order_by(*order_by)
+    else:
+        release_qs = release_qs.extra(
+            select={"sort": "COALESCE(date_released, date_added)"}
+        ).order_by("-sort")
+
+    return release_qs.values_list("version", flat=True)[:1].get()
 
 
 def parse_release(value, projects, environments, organization_id=None):

@@ -1088,9 +1088,14 @@ def follows_semver_versioning_scheme(org_id, project_id, release_version=None):
     follows_semver = True
 
     # Check if the latest ten releases are semver compliant
-    releases_list = Release.objects.filter(
-        organization=org_id, projects__id__in=[project_id]
-    ).order_by("-date_added")[:10]
+    releases_list = list(
+        Release.objects.filter(organization=org_id, projects__id__in=[project_id]).order_by(
+            "-date_added"
+        )[:10]
+    )
+
+    if not releases_list:
+        return False
 
     # ToDo(ahmed): re-visit/replace these conditions once we enable project wide `semver` setting
     # A project is said to be following semver versioning schemes if it satisfies the following
