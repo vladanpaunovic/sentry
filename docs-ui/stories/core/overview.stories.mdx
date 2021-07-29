@@ -1,9 +1,30 @@
 import { Meta } from '@storybook/addon-docs';
 import StylesVariantsComponets from '../../images/core-overview-styles-variants-components.png';
+import DoDont from '../../components/doDont';
 
 <Meta title="Core/Overview" />
 
 # Overview 
+
+export const doDontContent = {
+	do: {
+		text: 'Use only the approved, unmodified logo that is provided to you.',
+		img: {
+			src: require('../../images/gradients.png'),
+			alt: 'hello'
+		}
+	},
+	dont: {
+		text: 'Don\’t modify, distort, or add additional elements to the logo. And don’t use the Sentry S.',
+		img: {
+			src: require('../../images/gradients.png'),
+			alt: 'hello'
+		}
+	}
+}
+
+<DoDont boxes={doDontContent} />
+<DoDont boxes={doDontContent} />
 
 👋 Hello there! You've arrived at Sentry's UI System guidebook. Here, you will find a detailed account of our UI system, including interactive examples and recommended use cases. We want to have appropriate and consistent use of our components, so that's why this guidebook exists!
 
