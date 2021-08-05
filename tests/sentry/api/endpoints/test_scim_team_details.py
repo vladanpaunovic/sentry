@@ -4,9 +4,8 @@ from sentry.models import OrganizationMemberTeam, Team, TeamStatus
 from sentry.testutils import SCIMTestCase
 
 
-class SCIMGroupDetailsTests(SCIMTestCase):
-    def test_group_details_404(self):
-        # test team route 404s
+class SCIMTeamDetailsTests(SCIMTestCase):
+    def test_team_details_404(self):
         url = reverse(
             "sentry-api-0-organization-scim-team-details",
             args=[self.organization.slug, 2],
@@ -21,7 +20,6 @@ class SCIMGroupDetailsTests(SCIMTestCase):
 
     def test_scim_team_details_basic(self):
         team = self.create_team(organization=self.organization, name="test-scimv2")
-        # test team details GET
         url = reverse(
             "sentry-api-0-organization-scim-team-details",
             args=[self.organization.slug, team.id],
@@ -36,9 +34,24 @@ class SCIMGroupDetailsTests(SCIMTestCase):
             "meta": {"resourceType": "Group"},
         }
 
+    def test_scim_team_details_excluded_attributes(self):
+        team = self.create_team(organization=self.organization, name="test-scimv2")
+        url = reverse(
+            "sentry-api-0-organization-scim-team-details",
+            args=[self.organization.slug, team.id],
+        )
+        response = self.client.get(f"{url}?excludedAttributes=members")
+        assert response.status_code == 200, response.content
+        assert response.data == {
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "id": str(team.id),
+            "displayName": "test-scimv2",
+            "members": None,
+            "meta": {"resourceType": "Group"},
+        }
+
     def test_scim_team_details_patch_replace_rename_team(self):
         team = self.create_team(organization=self.organization)
-        # rename a team with the replace op
         url = reverse(
             "sentry-api-0-organization-scim-team-details", args=[self.organization.slug, team.id]
         )
@@ -61,11 +74,12 @@ class SCIMGroupDetailsTests(SCIMTestCase):
         assert response.data == {
             "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
             "id": str(team.id),
-            "displayName": "newname",  # we slugify the name passed in
+            "displayName": "newName",
             "members": None,
             "meta": {"resourceType": "Group"},
         }
         assert Team.objects.get(id=team.id).slug == "newname"
+        assert Team.objects.get(id=team.id).name == "newName"
 
     def test_scim_team_details_patch_add(self):
         team = self.create_team(organization=self.organization)
@@ -96,15 +110,13 @@ class SCIMGroupDetailsTests(SCIMTestCase):
         assert response.data == {
             "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
             "id": str(team.id),
-            "displayName": team.slug,
+            "displayName": team.name,
             "members": None,
             "meta": {"resourceType": "Group"},
         }
         assert OrganizationMemberTeam.objects.filter(
             team_id=str(team.id), organizationmember_id=member1.id
         ).exists()
-
-        # remove a member from a team
 
     def test_scim_team_details_patch_remove(self):
         team = self.create_team(organization=self.organization)
@@ -131,7 +143,7 @@ class SCIMGroupDetailsTests(SCIMTestCase):
         assert response.data == {
             "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
             "id": str(team.id),
-            "displayName": team.slug,
+            "displayName": team.name,
             "members": None,
             "meta": {"resourceType": "Group"},
         }
@@ -176,7 +188,7 @@ class SCIMGroupDetailsTests(SCIMTestCase):
         assert response.data == {
             "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
             "id": str(team.id),
-            "displayName": team.slug,
+            "displayName": team.name,
             "members": None,
             "meta": {"resourceType": "Group"},
         }
@@ -299,7 +311,7 @@ class SCIMGroupDetailsTests(SCIMTestCase):
         assert response.data == {
             "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
             "id": str(self.team.id),
-            "displayName": "thenewname",
+            "displayName": "theNewName",
             "members": None,
             "meta": {"resourceType": "Group"},
         }
