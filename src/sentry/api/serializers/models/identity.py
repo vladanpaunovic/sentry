@@ -1,6 +1,6 @@
-from sentry.api.serializers import Serializer, register
+from sentry.api.serializers import Serializer, register, serialize
 from sentry.models import Identity, IdentityProvider
-from sentry.api.serializers import serialize
+
 
 @register(Identity)
 class IdentitySerializer(Serializer):
