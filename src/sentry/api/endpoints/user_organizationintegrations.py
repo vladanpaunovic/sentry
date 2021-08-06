@@ -3,7 +3,7 @@ from django.db.models import Q
 from sentry.api.bases.user import UserEndpoint
 from sentry.api.paginator import OffsetPaginator
 from sentry.api.serializers import serialize
-from sentry.models import OrganizationIntegration, Integration, ObjectStatus
+from sentry.models import Integration, ObjectStatus, OrganizationIntegration
 
 
 class UserOrganizationIntegrationsEndpoint(UserEndpoint):
@@ -17,8 +17,8 @@ class UserOrganizationIntegrationsEndpoint(UserEndpoint):
         :auth: required
         """
         queryset = OrganizationIntegration.objects.filter(
-            organization__in=user.get_orgs(), 
-            status=ObjectStatus.VISIBLE, 
+            organization__in=user.get_orgs(),
+            status=ObjectStatus.VISIBLE,
             integration__status=ObjectStatus.VISIBLE,
         )
         provider = request.GET.get("provider")
