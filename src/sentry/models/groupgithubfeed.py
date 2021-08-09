@@ -17,6 +17,12 @@ class FeedType(Enum):
     PULL_REQUEST = 2
 
 
+FEED_TYPES = {
+    FeedType.BRANCH.value: "branch",
+    FeedType.PULL_REQUEST.value: "pull_request",
+}
+
+
 class FeedStatus(Enum):
     # Branch statuses
     CREATED = 1
@@ -26,6 +32,16 @@ class FeedStatus(Enum):
     OPEN = 4
     MERGED = 5
     CLOSED = 6
+
+
+FEED_STATUSES = {
+    FeedStatus.CREATED.value: "created",
+    FeedStatus.DELETED.value: "deleted",
+    FeedStatus.DRAFT.value: "draft",
+    FeedStatus.OPEN.value: "open",
+    FeedStatus.MERGED.value: "merged",
+    FeedStatus.CLOSED.value: "closed",
+}
 
 
 class GroupGithubFeed(Model):
