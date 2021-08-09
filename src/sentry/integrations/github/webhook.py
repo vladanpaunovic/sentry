@@ -25,7 +25,7 @@ from sentry.models import (
 from sentry.models.groupgithubfeed import FeedStatus, FeedType, GroupGithubFeed
 from sentry.shared_integrations.exceptions import ApiError
 from sentry.utils import json
-from sentry.utils.groupreference import find_referenced_groups_in_branch
+from sentry.utils.groupreference import find_referenced_groups, find_referenced_groups_in_branch
 
 from .repository import GitHubRepositoryProvider
 
@@ -175,7 +175,6 @@ class PushEventWebhook(Webhook):
         client = integration.get_installation(organization_id=organization.id).get_client()
         gh_username_cache = {}
 
-        commit_author = None
         for commit in event["commits"]:
             if not commit["distinct"]:
                 continue
@@ -303,11 +302,43 @@ class PushEventWebhook(Webhook):
 
         ref = event["ref"]
         branch = ref.split("refs/heads/")[-1]
+        user = event["sender"]
         referenced_groups = find_referenced_groups_in_branch(branch, organization.id)
+
+        try:
+            commit_author = commit_author = CommitAuthor.objects.get(
+                external_id=self.get_external_id(user["login"]),
+                organization_id=organization.id,
+            )
+        except CommitAuthor.DoesNotExist:
+            try:
+                identity = Identity.objects.get(
+                    external_id=user["id"],
+                    idp__type=self.provider,
+                    idp__external_id=self.get_idp_external_id(integration, host),
+                )
+            except Identity.DoesNotExist:
+                pass
+            else:
+                author_email = identity.user.email
+
+        try:
+            author = CommitAuthor.objects.get(
+                organization_id=organization.id, external_id=self.get_external_id(user["login"])
+            )
+        except CommitAuthor.DoesNotExist:
+            author, _created = CommitAuthor.objects.get_or_create(
+                organization_id=organization.id,
+                email=author_email,
+                defaults={
+                    "name": user["login"][:128],
+                    "external_id": self.get_external_id(user["login"]),
+                },
+            )
 
         if event["created"]:
             for group in referenced_groups:
-                GroupGithubFeed.objects.get_or_create(
+                GroupGithubFeed.objects.update_or_create(
                     organization_id=organization.id,
                     group_id=group.id,
                     branch_name=branch,
@@ -407,6 +438,54 @@ class PullRequestEventWebhook(Webhook):
             )
         except IntegrityError:
             pass
+
+        created = False
+        branch = pull_request["head"]["ref"]
+        referenced_groups = find_referenced_groups_in_branch(branch, organization.id)
+        if pull_request["state"] == "open":
+            if pull_request["draft"]:
+                status = FeedStatus.DRAFT.value
+            else:
+                status = FeedStatus.OPEN.value
+        elif pull_request["state"] == "closed":
+            status = FeedStatus.CLOSED.value
+        else:
+            status = FeedStatus.MERGED.value
+
+        for group in referenced_groups:
+            group, created = GroupGithubFeed.objects.update_or_create(
+                organization_id=organization.id,
+                group_id=group.id,
+                branch_name=branch,
+                defaults={
+                    "feed_type": FeedType.PULL_REQUEST.value,
+                    "feed_status": status,
+                    "author": commit_author,
+                    "display_name": pull_request["title"],
+                    "url": pull_request["url"],
+                },
+            )
+
+            created = True
+
+        if not created:
+            description = pull_request["body"]
+            referenced_groups = find_referenced_groups(description, organization.id)
+            for group in referenced_groups:
+                GroupGithubFeed.objects.update_or_create(
+                    organization_id=organization.id,
+                    group_id=group.id,
+                    branch_name=branch,
+                    defaults={
+                        "feed_type": FeedType.PULL_REQUEST.value,
+                        "feed_status": status,
+                        "author": commit_author,
+                        "display_name": pull_request["title"],
+                        "url": pull_request["url"],
+                    },
+                )
+
+                created = True
 
 
 class GitHubWebhookBase(View):
