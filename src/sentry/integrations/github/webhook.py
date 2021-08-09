@@ -22,8 +22,10 @@ from sentry.models import (
     PullRequest,
     Repository,
 )
+from sentry.models.groupgithubfeed import FeedType, GroupGithubFeed
 from sentry.shared_integrations.exceptions import ApiError
 from sentry.utils import json
+from sentry.utils.groupreference import find_referenced_groups_in_branch
 
 from .repository import GitHubRepositoryProvider
 
@@ -297,6 +299,23 @@ class PushEventWebhook(Webhook):
                         )
             except IntegrityError:
                 pass
+
+        ref = event["ref"]
+        branch = ref.split("refs/heads/")[-1]
+        referenced_groups = find_referenced_groups_in_branch(branch, organization.id)
+
+        for group in referenced_groups:
+            GroupGithubFeed.objects.get_or_create(
+                organization_id=organization.id,
+                group_id=group.id,
+                branch_name=branch,
+                defaults={
+                    "feed_type": FeedType.BRANCH.value,
+                    "author": None,
+                    "display_name": branch,
+                    "url": event["head_commit"]["url"],
+                },
+            )
 
 
 class PullRequestEventWebhook(Webhook):
