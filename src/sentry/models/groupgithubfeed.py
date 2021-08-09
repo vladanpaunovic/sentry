@@ -18,10 +18,14 @@ class FeedType(Enum):
 
 
 class FeedStatus(Enum):
-    DRAFT = 1
-    OPEN = 2
-    MERGED = 3
-    CLOSED = 4
+    # Branch statuses
+    CREATED = 1
+    DELETED = 2
+    # PR statuses
+    DRAFT = 3
+    OPEN = 4
+    MERGED = 5
+    CLOSED = 6
 
 
 class GroupGithubFeed(Model):

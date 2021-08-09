@@ -22,7 +22,7 @@ from sentry.models import (
     PullRequest,
     Repository,
 )
-from sentry.models.groupgithubfeed import FeedType, GroupGithubFeed
+from sentry.models.groupgithubfeed import FeedStatus, FeedType, GroupGithubFeed
 from sentry.shared_integrations.exceptions import ApiError
 from sentry.utils import json
 from sentry.utils.groupreference import find_referenced_groups_in_branch
@@ -175,6 +175,7 @@ class PushEventWebhook(Webhook):
         client = integration.get_installation(organization_id=organization.id).get_client()
         gh_username_cache = {}
 
+        commit_author = None
         for commit in event["commits"]:
             if not commit["distinct"]:
                 continue
@@ -304,18 +305,34 @@ class PushEventWebhook(Webhook):
         branch = ref.split("refs/heads/")[-1]
         referenced_groups = find_referenced_groups_in_branch(branch, organization.id)
 
-        for group in referenced_groups:
-            GroupGithubFeed.objects.get_or_create(
-                organization_id=organization.id,
-                group_id=group.id,
-                branch_name=branch,
-                defaults={
-                    "feed_type": FeedType.BRANCH.value,
-                    "author": None,
-                    "display_name": branch,
-                    "url": event["head_commit"]["url"],
-                },
-            )
+        if event["created"]:
+            for group in referenced_groups:
+                GroupGithubFeed.objects.get_or_create(
+                    organization_id=organization.id,
+                    group_id=group.id,
+                    branch_name=branch,
+                    defaults={
+                        "feed_type": FeedType.BRANCH.value,
+                        "feed_status": FeedStatus.CREATED.value,
+                        "author": commit_author,
+                        "display_name": branch,
+                        "url": event["head_commit"]["url"],
+                    },
+                )
+
+        elif event["deleted"]:
+            for group in referenced_groups:
+                GroupGithubFeed.objects.update_or_create(
+                    organization_id=organization.id,
+                    group_id=group.id,
+                    branch_name=branch,
+                    defaults={
+                        "feed_type": FeedType.BRANCH.value,
+                        "feed_status": FeedStatus.DELETED.value,
+                        "author": commit_author,
+                        "display_name": branch,
+                    },
+                )
 
 
 class PullRequestEventWebhook(Webhook):
