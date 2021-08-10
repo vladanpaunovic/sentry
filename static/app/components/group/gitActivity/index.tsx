@@ -8,6 +8,7 @@ import Tooltip from 'app/components/tooltip';
 import {IconCopy} from 'app/icons';
 import {t} from 'app/locale';
 import space from 'app/styles/space';
+import {Organization} from 'app/types';
 
 import SidebarSection from '../sidebarSection';
 
@@ -26,9 +27,10 @@ type GitActivity = {
 
 type Props = {
   shortId: string;
+  organization: Organization;
 };
 
-function GitActivity({shortId}: Props) {
+function GitActivity({shortId, organization}: Props) {
   const [gitActivities, setGitActivities] = useState<GitActivity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -110,6 +112,19 @@ function GitActivity({shortId}: Props) {
     } catch (error) {
       addErrorMessage(t('An error occurred while unlinkig the Pull Request'));
     }
+  }
+
+  function branchPrefix() {
+    const keywords = {
+      '[issueId]': shortId,
+      '[orgSlug]': organization.slug,
+    };
+
+    const branchPrefixRegex = /\[\b(?:issueId|orgSlug)\b\]/g;
+    return organization.branchFormat?.replace(
+      branchPrefixRegex,
+      match => keywords[match]
+    );
   }
 
   if (isLoading) {

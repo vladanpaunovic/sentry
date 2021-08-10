@@ -232,6 +232,7 @@ export type LightWeightOrganization = OrganizationSummary & {
   onboardingTasks: OnboardingTaskStatus[];
   trustedRelays: Relay[];
   role?: string;
+  branchFormat: string;
 };
 
 /**
