@@ -272,7 +272,6 @@ class OrganizationSerializer(serializers.Serializer):
         return value
 
     def validate_branchFormat(self, value):
-        # TODO: add more validations
         if "[issueId]" not in value:
             raise serializers.ValidationError("The branchFormat must contain [issueId]")
         return value

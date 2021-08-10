@@ -231,8 +231,8 @@ export type LightWeightOrganization = OrganizationSummary & {
   apdexThreshold: number;
   onboardingTasks: OnboardingTaskStatus[];
   trustedRelays: Relay[];
-  role?: string;
   branchFormat: string;
+  role?: string;
 };
 
 /**
