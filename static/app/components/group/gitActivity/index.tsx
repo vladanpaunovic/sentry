@@ -115,16 +115,9 @@ function GitActivity({shortId, organization}: Props) {
   }
 
   function branchPrefix() {
-    const keywords = {
-      '[issueId]': shortId,
-      '[orgSlug]': organization.slug,
-    };
-
-    const branchPrefixRegex = /\[\b(?:issueId|orgSlug)\b\]/g;
-    return organization.branchFormat?.replace(
-      branchPrefixRegex,
-      match => keywords[match]
-    );
+    return organization.branchFormat
+      ?.replace('[issueId]', shortId)
+      .replace('[orgSlug]', organization.slug);
   }
 
   if (isLoading) {
